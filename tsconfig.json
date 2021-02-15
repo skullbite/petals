@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "ES6",
+        "module": "CommonJS",
+        "allowSyntheticDefaultImports": false,
+        "esModuleInterop": false,
+        "experimentalDecorators": true,
+        "outDir": "src",
+        "declaration": true,
+        "strict": false
+    }
+}
