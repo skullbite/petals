@@ -1,12 +1,13 @@
 {
     "compilerOptions": {
-        "target": "ES6",
+        "target": "ESNext",
         "module": "CommonJS",
         "allowSyntheticDefaultImports": false,
         "esModuleInterop": false,
         "experimentalDecorators": true,
-        "outDir": "src",
+        "outDir": "compiled",
         "declaration": true,
-        "strict": false
+        "strict": false,
+        "newLine": "lf"
     }
 }
