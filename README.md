@@ -1,4 +1,4 @@
-# 🌺 **Petals**
+# ![courtcaselogo-Recovered](https://user-images.githubusercontent.com/20869262/114259137-c808d480-9999-11eb-9e45-027a40565d9a.png)
 Discord API Wrapper made with nothing more than the intention of further learning (and typescript, can't forget typescript). 
 
 # Basic Usage
