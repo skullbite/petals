@@ -40,4 +40,3 @@ export class SlashCommand extends Base {
         this.options = options ? new SlashCommandOptions(options) : undefined
     }
 }
-

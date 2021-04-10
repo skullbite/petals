@@ -5,11 +5,11 @@ import type RawClient from "../client"
 import type { statusTypes } from "../client"
 import Role from "./role"
 import Emoji from "./emoji"
-import Pile from "../utils/furpile"
-import PetalsFile from "../utils/file"
+import Pile from "../utils/pile"
 import PermissionOverwrite from "./permissionoverwrite"
 import PetalsPermissions from "./permissions"
 import * as cdn from "../http/cdn"
+import FlagHandler from "../utils/flagcalc"
 
 interface WidgetSettings {
     enabled: boolean
@@ -23,6 +23,12 @@ const activityFlags = {
     SYNC: 1 << 4,
     PLAY: 1 << 5
 }
+
+const systemChannelFlags = {
+    SUPPRESS_JOIN_NOTIFICATIONS: 1 << 0,
+    SUPPRESS_PREMIUM_SUBSCRIPTIONS: 1 << 1
+}
+
 class Activity {
     name: string
     type: 0|1|2|3|4|5|6
@@ -36,7 +42,7 @@ class Activity {
     party?: { id?: string, size?: [number, number] }
     assets?: { large_image?: string, large_text?: string, small_image?: string, small_text?: string }
     instance?: boolean
-    flags?: string[]
+    flags?: FlagHandler
     constructor(data) {
         const { name, type, url, created_at, timestamps, application_id, details, state, emoji, party, assets, instance, flags } = data
         this.name = name
@@ -51,7 +57,7 @@ class Activity {
         this.party = party
         this.assets = assets
         this.instance = instance
-        this.flags = flags ? Object.keys(activityFlags).map(d => { if (flags & activityFlags[d]) return d }) : []
+        this.flags = flags ? new FlagHandler(flags, activityFlags) : undefined
     }
 }
 class Prensence {
@@ -96,13 +102,13 @@ export class PartialGuild extends Base {
         this.approximatePresenceCount = approximate_presence_count
     }
     get splashURL() {
-        return cdn.guildSplashURL(this.id, this.splash)
+        return this.splash ? cdn.guildSplashURL(this.id, this.splash) : undefined
     }
     get iconURL() {
-        return cdn.guildIconURL(this.id, this.icon)
+        return this.icon ? cdn.guildIconURL(this.id, this.icon) : undefined
     }
     get bannerURL() {
-        return cdn.guildBannerURL(this.id, this.banner)
+        return this.icon ? cdn.guildBannerURL(this.id, this.banner) : undefined
     }
 }
 
@@ -116,9 +122,13 @@ export class Guild extends PartialGuild {
     discoverySplash?: string
     updatesChannel?: c.GuildTextable
     systemChannel?: c.GuildTextable
+    systemChannelFlags?: string[]
     rulesChannel?: c.GuildTextable
     afkChannel?: c.VoiceChannel
+    channels: Pile<string, c.GuildChannels>
     boosterCount: number
+    defaultMessageNotifications: number
+    explicitContentFilter: number
     mfaLevel: number
     ownerID: string
     splash?: string
@@ -180,23 +190,27 @@ export class Guild extends PartialGuild {
             this.members.set(d.user.id, new Member(d, bot))
         })
         this.presences = presences.map(d => new Prensence(d, this._bot))
+        this.channels = new Pile
         channels.map(d => {
             Object.assign(d, { guild_id: this.id })
             switch (d.type) {
             case 0:
-                this._bot.channels.set(d.id, new c.TextChannel(d, this._bot))
+                this.channels.set(d.id, new c.TextChannel(d, this._bot))
                 break
             case 2:
-                this._bot.channels.set(d.id, new c.VoiceChannel(d, this._bot))
+                this.channels.set(d.id, new c.VoiceChannel(d, this._bot))
                 break
             case 4:
-                this._bot.channels.set(d.id, new c.ChannelCategory(d, this._bot))
+                this.channels.set(d.id, new c.ChannelCategory(d, this._bot))
                 break
             case 5:
-                this._bot.channels.set(d.id, new c.NewsChannel(d, this._bot))
+                this.channels.set(d.id, new c.NewsChannel(d, this._bot))
                 break
             case 6:
-                this._bot.channels.set(d.id, new c.StoreChannel(d, this._bot))
+                this.channels.set(d.id, new c.StoreChannel(d, this._bot))
+                break
+            case 13: 
+                this.channels.set(d.id, new c.StageChannel(d, this._bot))
                 break
             }
         })
@@ -205,6 +219,7 @@ export class Guild extends PartialGuild {
         this.updatesChannel = this.channels.get(public_updates_channel_id) as c.GuildTextable
         this.rulesChannel = this.channels.get(rules_channel_id) as c.GuildTextable
         this.systemChannel = this.channels.get(system_channel_id) as c.GuildTextable
+        if (this.systemChannel) this.systemChannelFlags = Object.keys(system_channel_flags).map(d => { if ((system_channel_flags & systemChannelFlags[d]) === systemChannelFlags[d]) return d })
         this.afkChannel = this.channels.get(afk_channel_id) as c.VoiceChannel
         this.boosterCount = premium_subscription_count
         this.mfaLevel = mfa_level
@@ -212,6 +227,8 @@ export class Guild extends PartialGuild {
         this.features = features
         this.splash = splash
         this.preferredLocale = preferred_locale
+        this.explicitContentFilter = explicit_content_filter
+        this.defaultMessageNotifications = default_message_notifications
         this.memberCount = member_count
         this.banner = banner
         this.afkTimeout = afk_timeout
@@ -219,20 +236,23 @@ export class Guild extends PartialGuild {
         this.boostLevel = premium_tier
         this.large = large
     }
-    get channels(): Pile<string, c.GuildChannels> {
-        const retVal: Pile<string, c.GuildChannels> = new Pile
-        for (const key of Array.from(this._bot.channels.keys())) {
-            const channel = this._bot.channels.get(key)
-            if (!(channel instanceof c.DMChannel) && (channel.guildID === this.id)) retVal.set(channel.id, channel)
-        }
-        return retVal
+    get channelsInOrder() {
+        return Array.from(this.channels.values()).sort((a, b) => b.position - a.position)
+    }
+    async getAuditLogs(options?: {
+        user_id?: string,
+        action_type?: number,
+        before?: string,
+        limit?: number
+    }) {
+        return this._bot.http.getAuditLogs(this.id, options ?? {})
     }
     async edit(opts: {
         name?: string,
         region?: string,
-        icon?: PetalsFile,
-        banner?: PetalsFile,
-        splash?: PetalsFile,
+        icon?: Buffer,
+        banner?: Buffer,
+        splash?: Buffer,
         verification_level?: 0|1|2|3|4,
         default_message_notifications?: 0|1,
         explicit_content_filter?: 0|1|2,
@@ -252,7 +272,7 @@ export class Guild extends PartialGuild {
     }
     async createChannel(opts: {
         name: string,
-        type?: 0|2|4|5|6,
+        type?: 0|2|4|5|6|13,
         position?: number,
         topic?: string,
         nsfw?: boolean,
@@ -264,6 +284,25 @@ export class Guild extends PartialGuild {
     }) {
         return this._bot.http.createGuildChannel(this.id, opts)
     }
+    async createEmoji(body: {
+        name: string,
+        image: Buffer, 
+        roles?: string[]
+    }) {
+        return this._bot.http.createGuildEmoji(this.id, body)
+    }
+    async fetchEmoji(emojiID: string) {
+        return this._bot.http.getGuildEmoji(this.id, emojiID)
+    }
+    async fetchEmojis() {
+        return this._bot.http.listGuildEmojis(this.id)
+    }
+    async editEmoji(emojiID: string, options: { name?: string, roles?: string[] }) {
+        return this._bot.http.editGuildEmoji(this.id, emojiID, options)
+    }
+    async deleteEmoji(emojiID: string) {
+        await this._bot.http.deleteGuildEmoji(this.id, emojiID)
+    }
     async repositionChannel(channelID: string, position: number, reason?: string) {
         await this._bot.http.editChannelPositions(this.id, channelID, position, reason ?? "")
     }
@@ -274,13 +313,19 @@ export class Guild extends PartialGuild {
         return this._bot.http.listGuildMembers(this.id, opts)
     }
     async changeNick(nick?: string, reason?: string) {
-        await this._bot.http.editSelfNick({ guildID: this.id, nick: nick ?? "", reason: reason ?? ""})
+        await this._bot.http.editSelfNick(this.id, { nick: nick, reason: reason ?? ""})
     }
     async fetchAllBans() {
         return this._bot.http.getGuildBans(this.id)
     }
     async fetchBan(userID: string) {
         return this._bot.http.getGuildBan(this.id, userID)
+    }
+    async kick(memberID: string, reason?: string) {
+        return this._bot.http.removeGuildMember(this.id, memberID, reason ?? "")
+    }
+    async ban(userID: string, opts?: { delete_message_days?: number, reason?: string }) {
+        return this._bot.http.createGuildBan(this.id, { userID: userID, body: opts })
     }
     async unban(userID: string, reason?: string) {
         await this._bot.http.removeGuildBan(this.id, userID, reason ?? "")
@@ -318,7 +363,7 @@ export class Guild extends PartialGuild {
     async editWidgetSettings(opts: { enabled?: boolean, channel_id?: string }) {
         return this._bot.http.editGuildWidgetSettings(this.id, opts)
     }
-    async getIntegrations() {
+    async fetchIntegrations() {
         return this._bot.http.getGuidIntegrations(this.id)
     }
     getWidget(style: "shield" | "banner1" | "banner2" | "banner3" | "banner4") {
@@ -336,5 +381,4 @@ export class Guild extends PartialGuild {
     get shardID() {
         return (Number(BigInt(this.id)) >> 22) % this._bot._shardsReady
     }
-
 }

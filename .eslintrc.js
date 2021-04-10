@@ -32,7 +32,7 @@ module.exports = {
         "comma-dangle": [
             "error"
         ],
-        "no-unused-vars": [
+        "@typescript-eslint/no-unused-vars": [
             "error"
         ],
         "no-case-declarations": [

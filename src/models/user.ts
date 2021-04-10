@@ -1,28 +1,42 @@
 import Base from "./base"
 import { DMChannel } from "./channel"
-import type RawClient from "../client"
 import { avatarURL } from "../http/cdn"
 import PetalsFile from "../utils/file"
-import type { Guild } from "./guild"
 import type Role from "./role"
 import PetalsPermissions from "./permissions"
-import Pile from "../utils/furpile"
+import Pile from "../utils/pile"
+import FlagHandler from "../utils/flagcalc"
 
-
+const userFlags = {
+    NONE: 0,
+    DISCORD_EMPLOYEE: 1 << 0,
+    PARTNERED_GUILD_OWNER: 1 << 1,
+    HYPESQUAD_EVENTS: 1 << 2,
+    BUG_HUNTER_LVL_1: 1 << 3,
+    HOUSE_BRAVERY: 1 << 6,
+    HOUSE_BRILLIANCE: 1 << 7,
+    HOUSE_BALANCE: 1 << 8,
+    EARLY_SUPPORTER: 1 << 9,
+    TEAM_USER: 1 << 10,
+    SYSTEM: 1 << 12,
+    BUG_HUNTER_LVL_2: 1 << 14,
+    VERIFIED_BOT: 1 << 16,
+    EARLY_VERIFIED_BOT_DEVELOPER: 1 << 17
+}
 export class User extends Base {
     name: string
     discriminator: string
     bot: boolean
-    flags: number
+    flags: FlagHandler
     avatar: string
     avatarIsAnimated: boolean
     constructor(data, _bot) {
         super(data.id, _bot)
-        const { username, discriminator, bot, flags, avatar } = data
+        const { username, discriminator, bot, public_flags, avatar } = data
         this.name = username
         this.discriminator = discriminator
-        this.bot = bot ? true : false
-        this.flags = flags ? flags : 0
+        this.bot = bot ?? false
+        this.flags = public_flags ? new FlagHandler(public_flags, userFlags) : undefined
         this.avatarIsAnimated = avatar ? avatar.startsWith("a_") : false
         this.avatar = avatar
     }
@@ -111,7 +125,7 @@ export class Member extends User {
         this.fromID = guild_id
         this.roles = new Pile
         roles.map(d => this.roles.set(d, this.from.roles.get(d)))
-        let n = BigInt(0)
+        let n = 0n
         Array.from(this.roles.values()).map(d => n |= d.permissions.bitset)
         this.permissions = new PetalsPermissions(n)
     }
@@ -141,10 +155,10 @@ export class Member extends User {
         return this._bot.http.removeGuildRole(this.from.id, this.id, roleID, reason ?? "")
     }
     async kick(reason?: string) {
-        return this._bot.http.removeGuildMember(this.from.id, this.id, reason ?? "")
+        return this._bot.http.removeGuildMember(this.fromID, this.id, reason ?? "")
     }
     async ban(opts?: { delete_message_days?: number, reason?: string }) {
-        return this._bot.http.createGuildBan({ userID: this.id, guildID: this.from.id, body: opts })
+        return this._bot.http.createGuildBan(this.fromID, { userID: this.id, body: opts })
     }
 
 }
@@ -176,7 +190,7 @@ export class ClientUser extends User {
     }
     async edit(body: {
         username?: string,
-        avatar?: PetalsFile
+        avatar?: Buffer
     }) {
         return this._bot.http.editCurrentUser(body)
     }

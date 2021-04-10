@@ -7,6 +7,7 @@ import type RawClient from "../client"
 import type PetalsFile from "../utils/file"
 import Embed from "./embed"
 import Emoji from "./emoji"
+import FlagHandler from "../utils/flagcalc"
 
 const messageFlags = {
     CROSSPOSTED: 1 << 0,
@@ -43,14 +44,13 @@ export type MessageOptions =
         }
     } | string
 
-
 export default class Message extends Base {
     referenceMessage?: Message
     pinned: boolean
     mentions: string[]
     roleMentions: Role[]
     embeds: Embed[]
-    flags: string[]
+    flags: FlagHandler
     content?: string
     author?: Member | User
     attachments: Attachment[]
@@ -75,21 +75,27 @@ export default class Message extends Base {
             flags
         } = data
         const author = guild_id ? { ...data.member, user: data.author, guild_id: guild_id } : data.author
-        this.guild = guild_id ? this._bot.guilds.get(guild_id) : undefined
+        this.guild = this._bot.guilds.get(guild_id)
         this.content = content
         this.webhookID = webhook_id
         this.attachments = attachments.map(a => new Attachment(a))
         this.embeds = embeds.map(d => new Embed(d))
         this.author = this.guild ? new Member(author, this._bot) : new User(author, this._bot)
-        this.channel = this._bot.channels.get(channel_id) as c.AnyTextable
-        this.flags = Object.keys(messageFlags).map(d => {
-            if (flags & messageFlags[d]) return d
-        })
-        if (!this.channel) {
-            const newChannel = new c.DMChannel({ id: channel_id }, this._bot)
-            this._bot.channels.set(this.author.id, newChannel)
-            this.channel = newChannel
+        if (this.guild) {
+            this.author = new Member(author, this._bot)
+            this.channel = this.guild.channels.get(channel_id) as c.AnyTextable
+            if (!this.channel) this._bot.fetchChannel(channel_id).then(d => this.channel = d as c.AnyTextable)
         }
+        else {
+            this.author = new User(author, this._bot)
+            this.channel = this._bot.channels.get(channel_id) as c.AnyTextable
+            if (!this.channel) {
+                const newChannel = new c.DMChannel({ id: channel_id, recipients: [data.author] }, this._bot)
+                this._bot.channels.set(this.author.id, newChannel)
+                this.channel = newChannel
+            }
+        }
+        this.flags = new FlagHandler(flags, messageFlags)
         this.editedTimestamp = edited_timestamp ? new Date(edited_timestamp) : undefined
         this.referenceMessage = referenced_message ? new Message(referenced_message, this._bot) : undefined
         switch (type) {
@@ -194,6 +200,12 @@ export default class Message extends Base {
     }
     async findReactions(emoji: Emoji|string, options?: { before?: string, after?: string, limit?: number }) {
         return this._bot.http.getReactions(this.channel.id, this.id, emoji, options ?? {})
+    }
+    async pin() {
+        await this._bot.http.addPinnedMessage(this.channel.id, this.id)
+    }
+    async unpin() {
+        await this._bot.http.deletePinnedMessage(this.channel.id, this.id)
     }
     async announce() {
         if (this.channel instanceof c.NewsChannel) return this.channel.crosspost(this.id)

@@ -10,7 +10,7 @@ export default class Role extends Base {
     managed: boolean
     hoisted: boolean
     color: number
-    guildID: string
+    fromID: string
     constructor(data, bot: RawClient) {
         super(data.id, bot)
         const { position, permissions, name, mentionable, managed, hoist, color, guild_id } = data
@@ -21,10 +21,10 @@ export default class Role extends Base {
         this.managed = managed
         this.hoisted = hoist
         this.color = color
-        this.guildID = guild_id
+        this.fromID = guild_id
     }
     get from() {
-        return this._bot.guilds.get(this.guildID)
+        return this._bot.guilds.get(this.fromID)
     }
     async edit(opts: {
         name?: string,
@@ -33,13 +33,12 @@ export default class Role extends Base {
         mentionable?: boolean,
         permissions?: PetalsPermissions
     }) {
-        return this._bot.http.editGuildRole(this.guildID, this.id, opts)
+        return this._bot.http.editGuildRole(this.fromID, this.id, opts)
     }
     async delete() {
-        return this._bot.http.deleteGuildRole(this.guildID, this.id)
+        return this._bot.http.deleteGuildRole(this.fromID, this.id)
     }
     get ping() {
         return `<@&${this.id}>`
     }
-    
 }

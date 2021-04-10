@@ -14,10 +14,9 @@ type EmbedOpts = {
     fields?: { name: string, value: string, inline?: boolean }[]
     footer?: { text: string, icon_url?: string }
 }
-import { inspect } from "util"
 export default class Embed {
     private data
-    constructor(opts: { title?: string, description?: string, color?: number, timestamp?: Date, url?: string }) {
+    constructor(opts?: { title?: string, description?: string, color?: number, timestamp?: Date, url?: string }) {
         if (!opts) opts = {}
         const { title, description, url, color, timestamp } = opts
         this.data = {

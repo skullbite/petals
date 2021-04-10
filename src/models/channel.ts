@@ -1,29 +1,30 @@
 import Base from "./base"
-import Pile from "../utils/furpile"
+import Pile from "../utils/pile"
 import type RawClient from "../client"
-import { User } from "./user"
-import type PetalsFile from "../utils/file"
-import Message, { MessageOptions } from "./message"
+import { MessageOptions } from "./message"
 import PermissionOverwrite from "./permissionoverwrite"
-import Invite from "./invite"
+import { channelTypes } from "../http/requests"
+import { User } from "./user"
 
-
-export class ChannelCategory extends Base {
-    overwrites: Pile<string, PermissionOverwrite>
+abstract class GuildChannel extends Base {
     name: string
+    fromID: string
     position: number
-    guildID: string
-    constructor(data, bot: RawClient) {
+    overwrites: Pile<string, PermissionOverwrite>
+    constructor(data, bot) {
         super(data.id, bot)
-        this.guildID = data.guild_id
-        const { permission_overwrites, name, position } = data
+        const { permission_overwrites, name, position, guild_id } = data
         this.overwrites = new Pile
-        permission_overwrites.forEach((d: { id: string, type: number, allow: string, deny: string }) => this.overwrites.set(d.id, new PermissionOverwrite(d)))
+        permission_overwrites.map((d) => this.overwrites.set(d.id, new PermissionOverwrite(d)))
         this.name = name
         this.position = position
+        this.fromID = guild_id
     }
     get from() {
-        return this._bot.guilds.get(this.guildID)
+        return this._bot.guilds.get(this.fromID)
+    }
+    async delete() {
+        await this._bot.http.deleteChannel(this.id)
     }
     async editPermissionOverwrite(overwrite: PermissionOverwrite, newOverwrite: PermissionOverwrite) {
         await this._bot.http.editChannelPermissions(this.id, overwrite.id, newOverwrite)
@@ -33,7 +34,7 @@ export class ChannelCategory extends Base {
     }
     async edit(opts: {
         name?: string,
-        type?: 0|2|4|5|6,
+        type?: keyof typeof channelTypes,
         position?: number,
         topic?: string,
         nsfw?: boolean,
@@ -46,6 +47,7 @@ export class ChannelCategory extends Base {
         return this._bot.http.editChannel(this.id, opts)
     }
 }
+export class ChannelCategory extends GuildChannel {}
 
 export class PartialChannel extends Base {
     name: string
@@ -58,99 +60,75 @@ export class PartialChannel extends Base {
     }
 }
 
-export class TextChannel extends Base {
+export class TextChannel extends GuildChannel {
     topic?: string
     slowModeRateLimit?: number
-    position: number
-    overwrites: Pile<string, PermissionOverwrite>
     categoryID?: string
     nsfw: boolean
-    name: string
     lastMessageID?: string
-    guildID: string
-    constructor(data, bot: RawClient) {
-        super(data.id, bot)
+    constructor(data, bot) {
+        super(data, bot)
         this._bot = bot
-        this.guildID = data.guild_id
         const {
             topic,
             rate_limit_per_user,
-            position,
-            permission_overwrites,
             parent_id,
             nsfw,
-            name,
             last_message_id
         } = data
         this.topic = topic
         this.slowModeRateLimit = rate_limit_per_user
-        this.position = position
-        this.overwrites = new Pile
-        permission_overwrites.forEach(d => this.overwrites.set(d.id, new PermissionOverwrite(d)))
         this.categoryID = parent_id
-        this.nsfw = Boolean(nsfw)
-        this.name = name
+        this.nsfw = nsfw ?? false
         this.lastMessageID = last_message_id
     }
     get from() {
-        return this._bot.guilds.get(this.guildID)
+        return this._bot.guilds.get(this.fromID)
     }
     get tag() {
         return `<#${this.id}>`
     }
-    get pins() {
-        let pins: Message[]
-        this._bot.http.getPinnedMessages(this.id).then(d => pins = d)
-        return pins
-    }
-    get invites() {
-        let invites: Invite[]
-        this._bot.http.getChannelInvites(this.id).then(d => invites = d)
-        return invites
-    }
-    async pin(id: string) {
-        await this._bot.http.addPinnedMessage(this.id, id)
-    }
-    async unpin(id: string) {
-        await this._bot.http.deletePinnedMessage(this.id, id)
-    }
-    async delete() {
-        await this._bot.http.deleteChannel(this.id)
-    }
-    async typing() {
-        await this._bot.http.sendTyping(this.id)
-    }
-    async bulkDelete(messageIDs: string[]) {
-        await this._bot.http.bulkDeleteMessages(this.id, messageIDs)
-    }
-    async editPermissionOverwrite(current: string, newOverwrite: PermissionOverwrite) {
-        await this._bot.http.editChannelPermissions(this.id, current, newOverwrite)
-    }
-    async deletePermissionOverwrite(overwrite: PermissionOverwrite) {
-        await this._bot.http.deleteChannelPermissions(this.id, overwrite.id)
-    }
-    async edit(opts: {
-        name?: string,
-        type?: 0|2|4|5|6,
-        position?: number,
-        topic?: string,
-        nsfw?: boolean,
-        rate_limit_per_user?: number,
-        bitrate?: number,
-        user_limit?: number
-        permission_overwrites?: PermissionOverwrite[]
-        parent_id?: string
-    }) {
-        return this._bot.http.editChannel(this.id, opts)
-    }
-    async makeInvite(opts: {
+    async createInvite(opts: {
         max_age?: number,
         max_uses?: number,
         temporary?: boolean,
         unique?: boolean,
         target_user?: string
+        reason?: string
     }) {
-        return this._bot.http.createChannelInvite(this.id, opts)
+        return this._bot.http.createChannelInvite(this.id, opts, opts?.reason)
+    }
+    async deleteInvite(inviteCode: string, reason?: string) {
+        await this._bot.http.deleteInvite(inviteCode, reason)
+    }
+    async getInvites() {
+        return this._bot.http.getChannelInvites(this.id)
+    }
+    async getPins() {
+        return this._bot.http.getPinnedMessages(this.id)
+    }
+    async fetchMessage(messageID: string) {
+        return this._bot.http.getMessage(this.id, messageID)
+    }
+    async pin(messageID: string) {
+        await this._bot.http.addPinnedMessage(this.id, messageID)
+    }
+    async unpin(id: string) {
+        await this._bot.http.deletePinnedMessage(this.id, id)
+    }
+    async typing() {
+        await this._bot.http.sendTyping(this.id)
+    }
+    async bulkDelete({ messageIDs, limit, query }: { messageIDs?: string[], limit?: number, query?: { before?: string, around?: string, after?: string } }) {
+        if (messageIDs) {
+            await this._bot.http.bulkDeleteMessages(this.id, messageIDs)
+            return
+        }
+        else if (limit && query) {
+            const m = await this._bot.http.getMessages(this.id, query, limit)
+            await this._bot.http.bulkDeleteMessages(this.id, m.map(d => d.id))
+        }
+        else throw new Error("Must provide MessageIDs or a limit and a query.")
     }
     async send?(opts: MessageOptions) {
         let data
@@ -167,85 +145,57 @@ export class TextChannel extends Base {
 }
 
 export class NewsChannel extends TextChannel {
-    constructor(data, bot: RawClient) {
+    constructor(data, bot) {
         super(data, bot)
     }
-    
     async crosspost(messageID: string) {
         return this._bot.http.crosspostMessage(this.id, messageID)
     }
 }
 
-export class VoiceChannel extends Base {
+export class VoiceChannel extends GuildChannel {
     userLimit?: number
-    position: number
-    overwrites: Pile<string, PermissionOverwrite>
     categoryID?: string
-    name: string
     bitrate?: string
-    guildID: string
     constructor(data, bot: RawClient) {
-        super(data.id, bot)
-        this.guildID = data.guild_id
+        super(data, bot)
         const {
             user_limit,
-            position,
-            permission_overwrites,
             parent_id,
-            name,
             bitrate
         } = data
         this.userLimit = user_limit
-        this.position = position
-        this.overwrites = new Pile
-        permission_overwrites.forEach((d: { id: string, type: number, allow: string, deny: string }) => this.overwrites.set(d.id, new PermissionOverwrite(d)))
         this.categoryID = parent_id
-        this.name = name
         this.bitrate = bitrate
     }
-    get from() {
-        return this._bot.guilds.get(this.guildID)
-    }
-    async edit(opts: {
-        name?: string,
-        type?: 0|2|4|5|6,
-        position?: number,
-        topic?: string,
-        nsfw?: boolean,
-        rate_limit_per_user?: number,
-        bitrate?: number,
-        user_limit?: number
-        permission_overwrites?: PermissionOverwrite[]
-        parent_id?: string
-    }) {
-        return this._bot.http.editChannel(this.id, opts)
-    }
-    async delete() {
-        this._bot.http.deleteChannel(this.id)
-    }
-    async makeInvite(opts: {
+    async createInvite(opts: {
         max_age?: number,
         max_uses?: number,
         temporary?: boolean,
         unique?: boolean,
         target_user?: string
+        reason?: string
     }) {
-        return this._bot.http.createChannelInvite(this.id, opts)
+        return this._bot.http.createChannelInvite(this.id, opts, opts?.reason)
+    }
+    async deleteInvite(inviteCode: string, reason?: string) {
+        await this._bot.http.deleteInvite(inviteCode, reason)
+    }
+    async getInvites() {
+        return this._bot.http.getChannelInvites(this.id)
     }
 }
 
 export class DMChannel extends Base {
-    with: User
     id: string
+    with: User
     constructor(data, bot) {    
-        const { id } = data
-        super(id, bot)
-        // this.with = new User(recipients[0], this._bot)
+        super(data.id, bot)
+        
+        this.with = new User(data.recipients[0], bot)
     }
-    get pins() {
-        let pins: Message[]
-        this._bot.http.getPinnedMessages(this.id).then(d => pins = d)
-        return pins
+    async getPins() {
+        return this._bot.http.getPinnedMessages(this.id)
     }
     async delete() {
         this._bot.http.deleteChannel(this.id)
@@ -258,78 +208,77 @@ export class DMChannel extends Base {
         if (typeof opts === "string") data = { content: opts }
         else {
             data = { ...opts }
-            if (data.embed) data.embed = data.embed.toJSON
         } 
         return this._bot.http.sendMessage(this.id, data, this._bot)
     }
 }
 
-export class StoreChannel extends Base {
-    name: string
-    position: number
+export class StoreChannel extends GuildChannel {
     overwrites: Pile<string, PermissionOverwrite>
     nsfw: boolean
     categoryID: string
-    guildID: string
     constructor(data, bot: RawClient) {
-        super(data.id, bot)
-        this.guildID = data.guild_id
-        const { name, position, permission_overwrites, nsfw, parent_id } = data
-        this.name = name
-        this.position = position
-        this.overwrites = new Pile
-        permission_overwrites.forEach((d: { id: string, type: number, allow: string, deny: string }) => this.overwrites.set(d.id, new PermissionOverwrite(d)))
+        super(data, bot)
+        const { nsfw, parent_id } = data
         this.nsfw = nsfw ?? false
         this.categoryID = parent_id
     }
     get tag() {
         return `<#${this.id}>`
     }
-    get pins() {
-        let pins: Message[]
-        this._bot.http.getPinnedMessages(this.id).then(d => pins = d)
-        return pins
-    }
-
-    async delete() {
-        await this._bot.http.deleteChannel(this.id)
-    }
-
-    async editPermissionOverwrite(overwrite: PermissionOverwrite, newOverwrite: PermissionOverwrite) {
-        await this._bot.http.editChannelPermissions(this.id, overwrite.id, newOverwrite)
-    }
-
-    async deletePermissionOverwrite(overwrite: PermissionOverwrite) {
-        await this._bot.http.deleteChannelPermissions(this.id, overwrite.id)
-    }
-
-    async edit(opts: {
-        name?: string,
-        type?: 0|2|4|5|6,
-        position?: number,
-        topic?: string,
-        nsfw?: boolean,
-        rate_limit_per_user?: number,
-        bitrate?: number,
-        user_limit?: number
-        permission_overwrites?: PermissionOverwrite[]
-        parent_id?: string
-    }){
-        return this._bot.http.editChannel(this.id, opts)
-    }
-    
-    async makeInvite(opts: {
+    async createInvite(opts: {
         max_age?: number,
         max_uses?: number,
         temporary?: boolean,
         unique?: boolean,
         target_user?: string
+        reason?: string
     }) {
-        return this._bot.http.createChannelInvite(this.id, opts)
+        return this._bot.http.createChannelInvite(this.id, opts, opts?.reason)
+    }
+    async deleteInvite(inviteCode: string, reason?: string) {
+        await this._bot.http.deleteInvite(inviteCode, reason)
+    }
+    async getInvites() {
+        return this._bot.http.getChannelInvites(this.id)
     }
 }
 
+export class StageChannel extends GuildChannel {
+    name: string
+    topic?: string
+    categoryID?: string
+    bitrate: number
+    userLimit: number
+    rtcRegion?: string
+    constructor(data, bot) {
+        super(data.id, bot)
+        const { topic, parent_id, bitrate, user_limit, rtc_region } = data
+        this.topic = topic
+        this.categoryID = parent_id
+        this.bitrate = bitrate
+        this.userLimit = user_limit
+        this.rtcRegion = rtc_region
+    }
+    async createInvite(opts: {
+        max_age?: number,
+        max_uses?: number,
+        temporary?: boolean,
+        unique?: boolean,
+        target_user?: string
+        reason?: string
+    }) {
+        return this._bot.http.createChannelInvite(this.id, opts, opts?.reason)
+    }
+    async deleteInvite(inviteCode: string, reason?: string) {
+        await this._bot.http.deleteInvite(inviteCode, reason)
+    }
+    async getInvites() {
+        return this._bot.http.getChannelInvites(this.id)
+    }
+}
+ 
 export type GuildTextable = TextChannel|NewsChannel
-export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel
+export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|StageChannel
 export type AnyTextable = TextChannel|NewsChannel|DMChannel
-export type AllChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|DMChannel
+export type AllChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|DMChannel|StageChannel

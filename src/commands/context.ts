@@ -1,7 +1,6 @@
-import type { AnyTextable, GuildChannels } from "../models/channel"
+import type { AnyTextable } from "../models/channel"
 import type { Guild } from "../models/guild"
 import Message, { MessageOptions } from "../models/message"
-import type Role from "../models/role"
 import type { Member, User } from "../models/user"
 import type { cmd, argumentTypes } from "./command"
 import type CommandClient from "./commandclient"

@@ -1,4 +1,3 @@
-import { defaultCipherList } from "constants"
 import Base from "./base"
 import { PartialChannel } from "./channel"
 import { WidgetUser } from "./user"

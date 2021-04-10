@@ -18,23 +18,27 @@ const overwritePermissions = {
     MOVE_MEMBERS: 0x01000000,
     USE_VAD: 0x02000000
 }
+const permissionTypes = {
+    "role": 0,
+    "member": 1
+}
 type permissionKeys = keyof typeof overwritePermissions
-export default class PermissionOverwrite<K = permissionKeys[]> {
+export default class PermissionOverwrite {
     id: string
-    type: string
+    type: number
     allow: string
     deny: string
-    constructor(data: { id: string, type: number, allow: string|K, deny: string|K }) {
+    constructor(data: { id: string, type: 0|1|keyof typeof permissionTypes, allow: string|permissionKeys[], deny: string|permissionKeys[] }) {
         this.id = data.id
         const { type, allow, deny } = data
-        this.type = !type ? "role" : "member"
+        this.type = typeof type === "number" ? type : permissionTypes[type]
         switch (typeof allow) {
         case "string":
             this.allow = allow
             break
         case "object":
             let allown = 0
-            Object.keys(overwritePermissions).map(n => allown |= overwritePermissions[n])
+            allow.map(n => allown |= overwritePermissions[n])
             this.allow = String(allown) 
         }
         switch (typeof deny) {
@@ -43,13 +47,16 @@ export default class PermissionOverwrite<K = permissionKeys[]> {
             break
         case "object":
             let denyn = 0
-            Object.keys(overwritePermissions).map(n => denyn |= overwritePermissions[n])
-            this.deny = String(deny) 
+            deny.map(n => denyn |= overwritePermissions[n])
+            this.deny = String(denyn) 
         }
     }
     get toJSON() {
-        const d = JSON.parse(JSON.stringify(this))
-        d.type = this.type === "roles" ? 0 : 1
-        return d
+        return {
+            id: this.id,
+            type: this.type,
+            allow: this.allow,
+            deny: this.deny
+        }
     }
 }

@@ -1,6 +1,6 @@
 import type RawClient from "../client"
 
-export default class Base {
+export default abstract class Base {
     id: string
     createdAt: Date
     _bot: RawClient

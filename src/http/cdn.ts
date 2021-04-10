@@ -1,4 +1,5 @@
-const CDN_URL = "https://cdn.discordapp.com"
+import { CDN_URL } from "../utils/constants"
+
 export function emojiURL(emojiID: string): string {
     return CDN_URL + `/emojis/${emojiID}.${emojiID.startsWith("a_") ? "gif" : "png"}`
 }
@@ -11,7 +12,7 @@ export function guildSplashURL(guildID: string, hash: string): string {
 export function guildBannerURL(guildID: string, hash: string): string {
     return CDN_URL + `/banners/${guildID}/${hash}.png`
 }
-export function avatarURL(userID: string, discriminator: string, hash?: string): string {
+export function avatarURL(userID: string, discriminator?: string, hash?: string): string {
     let endpoint: string
     if (!hash) endpoint = `/embed/avatars/${Number(discriminator) % 2}.png`
     else endpoint = `/avatars/${userID}/${hash}.png`

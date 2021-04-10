@@ -3,7 +3,7 @@ import { ClientUser, Member } from "./models/user"
 import { User } from "./models/user"
 import Message from "./models/message"
 import HTTP from "./http/requests"
-import Pile from "./utils/furpile"
+import Pile from "./utils/pile"
 import { Guild } from "./models/guild"
 import Emoji from "./models/emoji"
 import * as e from "./errors"
@@ -14,9 +14,9 @@ import Role from "./models/role"
 import Invite from "./models/invite"
 import Embed from "./models/embed"
 import VoiceState from "./models/voicestate"
-import PetalsWS from "./utils/ws"
+import PetalsWS from "./ws"
 import Shard from "./models/shard"
-
+import PetalsPermissions from "./models/permissions"
 interface EventData {
     reactionAdd: { message: Message, userID: string, emoji: string|Emoji, member?: Member, channelID: string }
     reactionRemove: { message: Message, userID: string, emoji: string|Emoji, channelID: string }
@@ -37,7 +37,7 @@ export interface ClientEvents<T> {
     (event: "guild.member"|"guild.member.edit"|"guild.member.leave", listener: (member: Member, guild: Guild) => void): T
     (event: "channel.create"|"channel.edit"|"channel.delete", listener: (channel: c.GuildChannels) => void): T
     (event: "channel.pins.edit", listener: (timestamp: Date, channel: c.AnyTextable, guild: Guild) => void): T
-    (event: "error", listener: (err: e.RESTErrors) => void): T
+    (event: "error"|"error.rest", listener: (err: e.RESTErrors) => void): T
     (event: "msg.react", listener: (data: EventData["reactionAdd"]) => void): T
     (event: "msg.react.delete", listener: (data: EventData["reactionRemove"]) => void): T
     (event: "msg.react.remove.all", listener: (data: EventData["reactionRemoveAll"]) => void): T
@@ -48,7 +48,7 @@ export interface ClientEvents<T> {
     (event: "webhook.edit", listener: (channel: c.GuildTextable, guild: Guild) => void): T
 }
 export interface ClientOptions {
-    intents?: calc.wsKeys[]
+    intents?: calc.wsKeys[] | number
     shardCount?: "auto" | number
     subscriptions?: boolean
     requestAllMembers?: boolean
@@ -99,13 +99,18 @@ export default class RawClient extends EventEmitter {
         }, ClientOptions)
         this._allShardsReady = false
         this._shardsReady = 0
-        this.intents = calc.calculateWSIntents(this.opts.intents)
+        this.intents = this.opts.intents instanceof Array ? calc.calculateWSIntents(this.opts.intents) : this.opts.intents
         this.guilds = new Pile
         this.users = new Pile
         this.channels = new Pile
         this.messages = new Pile
         this.shards = new Pile
         this.on("shard.ready", () => this._shardsReady++)
+        this.on("error.rest", e => console.error(e))
+        this.on("shard.close", (shardID) => {
+            this.shards.delete(shardID)
+            this._shardsReady--
+        })
     }
     async send(id: string, opts: {
         content?: string,
@@ -124,11 +129,10 @@ export default class RawClient extends EventEmitter {
     }
     async changeStatus({ name, type=0, url="", status="online" }: {
         name: string, 
-        type: 0|1|2|3|4|5|6, 
+        type?: 0|1|2|3|4|5|6, 
         url?: string, 
         status?: statusTypes
     }): Promise<void> {
-
         const statusData = {
             since: 91879201,
             activities: [{
@@ -142,10 +146,56 @@ export default class RawClient extends EventEmitter {
         statusData.activities[0].url === "" ? delete statusData.activities[0].url : {}
         Array.from(this.shards.values()).map(d => d.ws.send(JSON.stringify({ op: 3, d: statusData })))
     }
-    async waitUntilReady() {
-        // eslint-disable-next-line no-empty
-        while (!this._allShardsReady) {}
-        return
+    async fetchThisUser() {
+        return this.http.fetchCurrentUser()
+    }
+    async fetchUser(userID: string) {
+        return this.http.fetchUser(userID)
+    }
+    async getAppInfo() {
+        return this.http.getAppInfo()
+    }
+    async fetchGuild(guildID: string, withCounts?: boolean) {
+        return this.http.getGuild(guildID, withCounts ?? false)
+    }
+    async fetchGuildPreview(guildID: string) {
+        return this.http.getGuildPreview(guildID)
+    }
+    async fetchChannel(channelID: string) {
+        return this.http.getChannel(channelID)
+    }
+    async createGuild(body: {
+        name: string,
+        region?: string,
+        icon?: Buffer,
+        verification_level?: 0|1|2|3|4,
+        default_message_notifications?: 0|1,
+        explicit_content_filter?: 0|1|2,
+        roles?: {
+            name?: string,
+            color: number,
+            hoist?: boolean,
+            mentionable?: boolean,
+            permissions?: PetalsPermissions
+        }[],
+        channels?: {
+            name: string,
+            type: 0|2|4|5|6
+        },
+        afk_channel_id?: string,
+        afk_timeout?: number,
+        system_channel_id?: string
+    }) {
+        return this.http.createGuild(body)
+    }
+    async getInvite(inviteCode: string, withCounts?: boolean) {
+        return this.http.getInvite(inviteCode, withCounts ?? false)
+    }
+    async leaveGuild(guildID: string) {
+        await this.http.leaveGuild(guildID)
+    }
+    async getBotGateway() {
+        return this.http.getBotGateway()
     }
     async run(token: string): Promise<void> {
         this.token = token
@@ -153,7 +203,7 @@ export default class RawClient extends EventEmitter {
         let totalShards: number
         if (this.opts.shardCount === "auto") { 
             try {
-                const res = await this.http.getBotGateway()
+                const res = await this.getBotGateway()
                 totalShards = res.shards
             }
             catch {
@@ -163,13 +213,10 @@ export default class RawClient extends EventEmitter {
         else totalShards = this.opts.shardCount
         if (totalShards <= 0) throw new Error("Invalid shard count provided!")
         for (let i = 0; i < totalShards; i++) {
-            const ws = new PetalsWS("wss://gateway.discord.gg/?v=8&encoding=json", this, i, totalShards)
+            const ws = new PetalsWS(this, i, totalShards)
             this.shards.set(i, new Shard(i, ws, this)) 
             await new Promise(resolve => setTimeout(resolve, 6e3))
         }
-        this.on("shard.close", (shardID) => {
-            this.shards.delete(shardID)
-            this._shardsReady--
-        })
+        this.opts.shardCount = totalShards
     }
 }

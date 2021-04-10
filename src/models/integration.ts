@@ -1,7 +1,5 @@
-/* eslint-disable linebreak-style */
 import Base from "./base"
 import { User } from "./user"
-
 class IntegrationApplication extends Base {
     name: string
     icon: string
@@ -67,4 +65,3 @@ export default class Integration extends Base {
         this.application = new IntegrationApplication(application, this._bot)
     }
 }
-

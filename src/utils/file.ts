@@ -3,7 +3,7 @@ export default class PetalsFile {
     baseString: string
     name: string
     buffer: Buffer
-    constructor(path: Buffer, filename: string) {
+    constructor(path: Buffer, filename?: string) {
         this.name = filename
         this.buffer = path
         this.baseString = path.toString("base64")

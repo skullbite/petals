@@ -1,4 +1,3 @@
-import Pile from "../utils/furpile"
 import { VoiceChannel } from "./channel"
 import type { Guild } from "./guild"
 import { Member } from "./user"

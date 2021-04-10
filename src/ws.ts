@@ -1,14 +1,15 @@
 /* eslint-disable no-fallthrough */
 import * as ws from "ws"
-import type RawClient from "../client"
-import * as c from "../models/channel"
-import Emoji from "../models/emoji"
-import { Guild } from "../models/guild"
-import Invite from "../models/invite"
-import Message from "../models/message"
-import Role from "../models/role"
-import { User, Member, ClientUser } from "../models/user"
-import VoiceState from "../models/voicestate"
+import type RawClient from "./client"
+import * as c from "./models/channel"
+import Emoji from "./models/emoji"
+import { Guild } from "./models/guild"
+import Invite from "./models/invite"
+import Message from "./models/message"
+import Role from "./models/role"
+import { User, Member, ClientUser } from "./models/user"
+import VoiceState from "./models/voicestate"
+import { WS_URI } from "./utils/constants"
 
 export default class PetalsWS extends ws {
     private readonly bot: RawClient
@@ -24,8 +25,8 @@ export default class PetalsWS extends ws {
         large_threshold: number
         guild_subscriptions: boolean
     }
-    constructor(address: string, bot: RawClient, shardID: number, totalShards: number) {
-        super(address)
+    constructor(bot: RawClient, shardID: number, totalShards: number) {
+        super(WS_URI)
         this.bot = bot
         this.loginPayload = {
             token: this.bot.token,
@@ -128,13 +129,14 @@ export default class PetalsWS extends ws {
                     }
                     break
                 case "MESSAGE_DELETE":
-                    if (this.useShard(message.guild)) {
-                        message = this.bot.messages.get(data.d.id)
+                    message = this.bot.messages.get(data.d.id)
+                    if (this.useShard(message?.guild ?? this.bot.guilds.get(data.d.guild_id))) {
                         this.bot.messages.delete(data.d.id) 
                         this.bot.emit("msg.delete", message) 
                     }
                     break
                 case "MESSAGE_DELETE_BULK":
+                    guild = this.bot.guilds.get(data.d.guild_id)
                     if (this.useShard(guild)) {
                         messages = data.d.ids.map(i => {
                             const cached = this.bot.messages.get(i)
@@ -142,7 +144,6 @@ export default class PetalsWS extends ws {
                             return cached
                         })
                         channel = this.bot.channels.get(data.d.channel_id) as c.GuildTextable
-                        guild = this.bot.guilds.get(data.d.guild_id)
                         this.bot.emit("message.delete.bulk", messages, channel, guild)
                     }
                     break
@@ -163,7 +164,15 @@ export default class PetalsWS extends ws {
                         channel: this.bot.channels.get(data.d.channel_id),
                         guild: this.bot.guilds.get(data.d.guild_id)
                     }
-                    parsedData.member = data.d.member ? parsedData.guild.members.get(data.d.member.id) ?? new Member(data.d.member, this.bot) : undefined
+                    if (data.d.member) {
+                        const cachedMember = parsedData.guild.members.get(data.d.member.user.id)
+                        if (cachedMember) parsedData.member = cachedMember()
+                        else {
+                            Object.assign(data.d.member, { guild_id: data.d.guild_id })
+                            parsedData.member = new Member(data.d.member, this.bot)
+                        }
+                    }
+                    
                     confirmShard = this.useShard(parsedData.guild)
                     if (confirmShard) this.bot.emit(data.t.includes("ADD") ? "msg.react" : "msg.react.remove", parsedData)
                     break
@@ -186,13 +195,19 @@ export default class PetalsWS extends ws {
                     break
                 case "TYPING_START":
                     parsedData = {
-                        message: this.bot.messages.get(data.d.message.id),
                         userID: data.d.user_id,
                         timestamp: data.d.timestamp,
                         channel: this.bot.channels.get(data.d.channel_id),
                         guild: this.bot.guilds.get(data.d.guild_id)
                     }
-                    parsedData.member = data.d.member ? parsedData.guild.members.get(data.d.member.id) ?? new Member(data.d.member, this.bot) : undefined
+                    if (data.d.member) {
+                        const cachedMember = parsedData.guild.members.get(data.d.member.user.id)
+                        if (cachedMember) parsedData.member = cachedMember
+                        else {
+                            Object.assign(data.d.member, { guild_id: data.d.guild_id })
+                            parsedData.member = new Member(data.d.member, this.bot)
+                        }
+                    }
                     confirmShard = this.useShard(parsedData.guild)
                     if (confirmShard) this.bot.emit("typing", parsedData)
                     break
@@ -275,6 +290,10 @@ export default class PetalsWS extends ws {
                             if (this.bot.opts.caching.channels) this.bot.channels.set(data.d.id, channel)
                             guild.channels.set(data.d.id, channel)
                             break
+                        case 13:
+                            channel = new c.StageChannel(data.d, this.bot)
+                            if (this.bot.opts.caching.channels) this.bot.channels.set(data.d.id, channel)
+                            guild.channels.set(data.d.id, channel)
                         }
                         this.bot.emit(data.t.includes("CREATE") ? "channel.create" : "channel.edit", channel)
                     }
@@ -323,7 +342,6 @@ export default class PetalsWS extends ws {
                 case "GUILD_MEMBER_ADD":
                 case "GUILD_MEMBER_UPDATE":
                     guild = this.bot.guilds.get(data.d.guild_id)
-                    console.log(data.d)
                     member = new Member(data.d, this.bot)
                     confirmShard = this.useShard(guild)
                     if (confirmShard) {
@@ -378,7 +396,7 @@ export default class PetalsWS extends ws {
             }
         })
     }
-    useShard(guild?: Guild) {
+    private useShard(guild?: Guild) {
         return (guild && guild.shardID === this.loginPayload.shards[0]) ?? this.loginPayload.shards[0] === 0
     }
     get latency() {

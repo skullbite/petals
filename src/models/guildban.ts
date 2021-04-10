@@ -1,6 +1,4 @@
-/* eslint-disable linebreak-style */
 import { User } from "./user"
-
 export default class GuildBan {
     reason?: string
     user: User

@@ -1,7 +1,7 @@
 export * as channels from "./src/models/channel"
 export { default as Embed } from "./src/models/embed"
 export { default as Emoji } from "./src/models/emoji"
-export { default as PFile } from "./src/utils/file"
+export { default as File } from "./src/utils/file"
 export { Guild } from "./src/models/guild"
 export { default as Invite } from "./src/models/invite"
 export { default as Message } from "./src/models/message"

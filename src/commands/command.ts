@@ -1,4 +1,4 @@
-import Pile from "../utils/furpile"
+import Pile from "../utils/pile"
 import { permissionKeys } from "../models/permissions"
 import CommandContext from "./context"
 import { Member, User } from "../models/user"
@@ -12,7 +12,7 @@ export type argument = {
     useRest?: boolean
 }
 type commandExec = (ctx: CommandContext) => void
-export type checkExec = (ctx: CommandContext) => boolean
+export type checkExec = (ctx: CommandContext) => boolean | Promise<boolean>
 interface commandOptions {
     name: string,
     aliases?: string[]

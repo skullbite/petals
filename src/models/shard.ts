@@ -1,5 +1,5 @@
 import RawClient from "../client"
-import PetalsWS from "../utils/ws"
+import PetalsWS from "../ws"
 
 export default class Shard {
     id: number
@@ -13,7 +13,7 @@ export default class Shard {
     restart() {
         this.ws.close(1000)
         this.bot.emit("shard.close", this.id)
-        this.ws = new PetalsWS("wss://gateway.discord.gg/?v=8&encoding=json", this.bot, this.id, this.bot.opts.shardCount as number)
+        this.ws = new PetalsWS(this.bot, this.id, this.bot.opts.shardCount as number)
         this.bot.shards.set(this.id, this)
     }
     get latency() {
