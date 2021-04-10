@@ -18,7 +18,7 @@ bot.run("cool token here")
 ```js
 // Use with the builtin command handler
 const 
-    Petals = require("./index"),
+    Petals = require("@skullbite/petal"),
     { Commands } = Petals,
     bot = new Commands.Bot({ prefix: "!" }, {})
 
