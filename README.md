@@ -32,9 +32,12 @@ bot.run("cool token here")
 ```
 # Documentation?
 Sorry, although base functionality is working fine, proper documentation is currently being worked on.
+# Questions?
+There's a lot of stuff that hasn't been covered yet, so feel free to ask in the [Discord Server](https://discord.gg/Kzm9C3NYvq) if you need help with something or have a question.
 
 # Extended Credits
 - [**Ice**](https://github.com/IceeMC) for fixing command handler issues.
 - [**PapiOphidan**](https://github.com/PapiOphidian) for helping me with REST stuff.
 - [**BowsiePup**](https://github.com/BowsiePup) / [**Donovan_DMC**](https://github.com/DonovanDMC) for helping me write the original command handler.
 - [**August**](https://github.com/auguwu) for ✨*inspiration*✨ (no i didn't steal wumpcord)
+
