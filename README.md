@@ -13,7 +13,7 @@ const
     Petals = require("@skullbite/petals"), 
     bot = new Petals.Client({})
 
-bot.on("ready", () => console.log(`${bot.user.tag} is ready!`)
+bot.on("ready", () => console.log(`${bot.user.tag} is ready!`))
 bot.on("msg", (m) => {
     if (m.content === "!hi") m.reply("hello!")
     }
