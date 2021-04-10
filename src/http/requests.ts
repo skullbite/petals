@@ -109,7 +109,7 @@ class HTTP {
             case 5: return new channels.NewsChannel(data, this.bot)
             case 6: return new channels.StoreChannel(data, this.bot)
             case 13: return new channels.StageChannel(data, this.bot)
-            default: throw new TypeError("wtf is this a new channel type")
+            default: throw new TypeError("The return is a channel type that has yet to be documented. Please alert the developer.")
             }
         }
         catch (e) {

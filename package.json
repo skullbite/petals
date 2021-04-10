@@ -1,14 +1,16 @@
 {
-    "name": "hibiscus-petals",
+    "name": "@skullbite/petals",
     "version": "1.0.0",
-    "description": "Discord Lib",
-    "main": "src/index.js",
-    "types": "src/typings/index.d.ts",
+    "homepage": "https://github.com/skullbite/petals#readme",
+    "funding": "https://github.com/sponsors/Skullbite",
+    "description": "Discord API Wrapper for Discord of course",
+    "main": "index.js",
+    "types": "index.d.ts",
     "scripts": {
         "compile": "tsc"
     },
     "author": "Skullbite",
-    "license": "ISC",
+    "license": "GPL-3.0-or-later",
     "dependencies": {
         "events": "^3.2.0",
         "file-type": "^16.2.0",
