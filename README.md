@@ -16,7 +16,6 @@ const
 bot.on("ready", () => console.log(`${bot.user.tag} is ready!`))
 bot.on("msg", (m) => {
     if (m.content === "!hi") m.reply("hello!")
-    }
 })
 
 bot.run("cool token here")
