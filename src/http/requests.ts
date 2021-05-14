@@ -1024,7 +1024,6 @@ class HTTP {
         const sendable: any = body
         sendable.type = ResponseTypes[body.type]
         if (body.data.embed) sendable.data.embed = body.data.embed.toJSON
-        console.log(sendable)
         await this.client.post(`/interactions/${interactionID}/${interactionToken}/callback`, {
             body: JSON.stringify(sendable)
         })
