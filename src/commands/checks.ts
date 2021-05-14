@@ -13,6 +13,5 @@ export async function isOwner(ctx: CommandContext) {
         else {
             return d.owner.id === ctx.author.id
         }
-
     }
 }

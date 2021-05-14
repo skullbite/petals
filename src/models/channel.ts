@@ -23,6 +23,9 @@ abstract class GuildChannel extends Base {
     get from() {
         return this._bot.guilds.get(this.fromID)
     }
+    get tag() {
+        return `<#${this.id}>`
+    }
     async delete() {
         await this._bot.http.deleteChannel(this.id)
     }
@@ -85,9 +88,6 @@ export class TextChannel extends GuildChannel {
     get from() {
         return this._bot.guilds.get(this.fromID)
     }
-    get tag() {
-        return `<#${this.id}>`
-    }
     async createInvite(opts: {
         max_age?: number,
         max_uses?: number,
@@ -128,18 +128,10 @@ export class TextChannel extends GuildChannel {
             const m = await this._bot.http.getMessages(this.id, query, limit)
             await this._bot.http.bulkDeleteMessages(this.id, m.map(d => d.id))
         }
-        else throw new Error("Must provide MessageIDs or a limit and a query.")
+        else throw new Error("Must provide message IDs or a limit and a query.")
     }
-    async send?(opts: MessageOptions) {
-        let data
-        switch (typeof opts) {
-        case "string":
-            data = { content: opts }
-            break
-        case "object":
-            data = { ...opts }
-            break
-        }
+    async send(opts: MessageOptions | string) {
+        const data = typeof opts === "string" ? { content: opts } : opts
         return this._bot.http.sendMessage(this.id, data, this._bot)
     }
 }
@@ -187,11 +179,9 @@ export class VoiceChannel extends GuildChannel {
 }
 
 export class DMChannel extends Base {
-    id: string
     with: User
     constructor(data, bot) {    
         super(data.id, bot)
-        
         this.with = new User(data.recipients[0], bot)
     }
     async getPins() {
@@ -203,18 +193,13 @@ export class DMChannel extends Base {
     async typing() {
         await this._bot.http.sendTyping(this.id)
     }
-    async send(opts: MessageOptions) {
-        let data
-        if (typeof opts === "string") data = { content: opts }
-        else {
-            data = { ...opts }
-        } 
+    async send(opts: MessageOptions | string) {
+        const data = typeof opts === "string" ? { content: opts } : opts
         return this._bot.http.sendMessage(this.id, data, this._bot)
     }
 }
 
 export class StoreChannel extends GuildChannel {
-    overwrites: Pile<string, PermissionOverwrite>
     nsfw: boolean
     categoryID: string
     constructor(data, bot: RawClient) {
@@ -222,9 +207,6 @@ export class StoreChannel extends GuildChannel {
         const { nsfw, parent_id } = data
         this.nsfw = nsfw ?? false
         this.categoryID = parent_id
-    }
-    get tag() {
-        return `<#${this.id}>`
     }
     async createInvite(opts: {
         max_age?: number,
@@ -245,14 +227,13 @@ export class StoreChannel extends GuildChannel {
 }
 
 export class StageChannel extends GuildChannel {
-    name: string
     topic?: string
     categoryID?: string
     bitrate: number
     userLimit: number
     rtcRegion?: string
     constructor(data, bot) {
-        super(data.id, bot)
+        super(data, bot)
         const { topic, parent_id, bitrate, user_limit, rtc_region } = data
         this.topic = topic
         this.categoryID = parent_id

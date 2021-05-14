@@ -4,12 +4,25 @@ import CommandContext from "./context"
 import { Member, User } from "../models/user"
 import { GuildChannels } from "../models/channel"
 import Role from "../models/role"
-export type argumentTypes = string | number | Member | User | GuildChannels | Role
+import { Options, SlashTemplate } from "../models/slash/command"
+export type argumentTypes = string | number | boolean | Member | User | GuildChannels | Role
 export type argument = {
     name: string
-    type: "str" | "num" | "member" | "user" | "channel" | "role"
+    type: "str" | "num" | "bool" |"member" | "user" | "channel" | "role"
+    description?: string
     required?: boolean
     useRest?: boolean
+}
+export function slashSafeArgument(d: argument["type"]) {
+    switch (d) {
+    case "str": return "STRING"
+    case "num": return "INTEGER"
+    case "bool": return "BOOLEAN"
+    case "user":
+    case "member": return "USER"
+    case "channel": return "CHANNEL"
+    case "role": return "ROLE"
+    }
 }
 type commandExec = (ctx: CommandContext) => void
 export type checkExec = (ctx: CommandContext) => boolean | Promise<boolean>
@@ -17,12 +30,15 @@ interface commandOptions {
     name: string,
     aliases?: string[]
     description?: string
-    cooldown?: number
+    cooldown?: {
+        bucketType: "guild"|"channel"|"user"|"yeehaw"
+        time: number
+    }
+    slashOnly?: boolean
     guildOnly?: boolean
     hidden?: boolean
     nsfw?: boolean
 }
-
 export class Command {
     name: string
     exec: commandExec
@@ -36,11 +52,15 @@ export class Command {
     path?: string
     category?: string
     parent?: string
-    cooldown?: number;
+    cooldown?: {
+        bucketType: "guild"|"channel"|"user"|"yeehaw"
+        time: number
+    }
+    slashOnly?: boolean
     botPerms?: permissionKeys[]
     memberPerms?: permissionKeys[]
     constructor(opts: commandOptions) {
-        const { name, aliases, description, cooldown, guildOnly, hidden, nsfw } = opts
+        const { name, aliases, description, cooldown, guildOnly, hidden, nsfw, slashOnly } = opts
         if (!opts) throw new Error("Command requires an object.")
         if (!opts.name || !opts.name.length) throw new Error("Command is missing a name.")
         this.name = name
@@ -50,6 +70,7 @@ export class Command {
         this.guildOnly = guildOnly ?? false
         this.hidden = hidden ?? false
         this.nsfw = nsfw ?? false
+        this.slashOnly = slashOnly ?? false
     }
     setExec(exec: commandExec): this {
         this.exec = exec  
@@ -70,6 +91,22 @@ export class Command {
     setMemberPerms(permissions: permissionKeys[]): this {
         this.memberPerms = permissions
         return this
+    }
+    convertToSlash(): SlashTemplate {
+        if (!this.name.match(/^[\w-]{1,32}$/)[0]) throw new Error("Command name doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.")
+        return {
+            name: this.name,
+            description: this.description ?? "No Description Provided.",
+            options: (this.args ? this.args.map<Options>(a => { 
+                if (!a.name.match(/^[\w-]{1,32}$/)[0]) throw new Error(`Argument name "${a.name}" doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.`)
+                return { 
+                    name: a.name, 
+                    type: slashSafeArgument(a.type), 
+                    description: a.description ?? "No Description Provided.", 
+                    required: a.required ?? false 
+                } 
+            }) : [])
+        }
     }
 }
 
@@ -96,6 +133,32 @@ export class Group extends Command {
         if (cmd.cooldown) this.extCooldowns.set(cmd.name, new Pile)
         cmd.parent = this.name
         return this
+    }
+    convertToSlash(): SlashTemplate {
+        if (!this.name.match(/^[\w-]{1,32}$/)[0]) throw new Error("Command name doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.")
+        const 
+            subs = Array.from(this.subcommands.values()),
+            output: SlashTemplate = {
+                name: this.name,
+                description: this.description ?? "No Description Provided."
+            },
+            subOpts = subs.map(d => { 
+                if (!d.name.match(/^[\w-]{1,32}$/)[0]) throw new Error(`Argument name "${d.name}" doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.`)
+                return { 
+                    type: "SUB_COMMAND", 
+                    name: d.name, 
+                    description: d.description ?? "No Description Provided.",
+                    options: (d.args ? d.args.map<Options>(a => { 
+                        if (!a.name.match(/^[\w-]{1,32}$/)[0]) throw new Error(`Argument name "${d.name}" doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.`)
+                        return { 
+                            name: a.name, 
+                            type: slashSafeArgument(a.type), 
+                            description: a.description ?? "No Description Provided.", 
+                            required: a.required ?? false 
+                        } }) : [])
+                } })
+        output.options = subOpts as any
+        return output
     }
 }
 

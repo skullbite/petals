@@ -5,8 +5,9 @@ import * as c from "./models/channel"
 import Emoji from "./models/emoji"
 import { Guild } from "./models/guild"
 import Invite from "./models/invite"
-import Message from "./models/message"
+import { Message } from "./models/message"
 import Role from "./models/role"
+import Interaction from "./models/slash/interaction"
 import { User, Member, ClientUser } from "./models/user"
 import VoiceState from "./models/voicestate"
 import { WS_URI } from "./utils/constants"
@@ -105,7 +106,7 @@ export default class PetalsWS extends ws {
                 case "READY":
                     this.bot.emit("shard.ready", this.loginPayload.shards[0])
                     if (!this.bot.user) this.bot.user = new ClientUser(data.d.user, this.bot)
-                    if (this.bot._shardsReady === this.loginPayload.shards[1]) {
+                    if (this.bot._shardsReady === this.loginPayload.shards[1] || this.bot._shardsReady === this.bot.opts.shards?.length) {
                         this.bot.sessionID = data.d.session_id
                         if (!this.bot._allShardsReady) {
                             this.bot.emit("ready") 
@@ -166,13 +167,12 @@ export default class PetalsWS extends ws {
                     }
                     if (data.d.member) {
                         const cachedMember = parsedData.guild.members.get(data.d.member.user.id)
-                        if (cachedMember) parsedData.member = cachedMember()
+                        if (cachedMember) parsedData.member = cachedMember
                         else {
                             Object.assign(data.d.member, { guild_id: data.d.guild_id })
                             parsedData.member = new Member(data.d.member, this.bot)
                         }
                     }
-                    
                     confirmShard = this.useShard(parsedData.guild)
                     if (confirmShard) this.bot.emit(data.t.includes("ADD") ? "msg.react" : "msg.react.remove", parsedData)
                     break
@@ -346,6 +346,7 @@ export default class PetalsWS extends ws {
                     confirmShard = this.useShard(guild)
                     if (confirmShard) {
                         if (this.bot.opts.caching.members) guild.members.set(data.d.id, member)
+                        if (this.bot.opts.caching.users) this.bot.users.set(data.d.id, new User(data.d, this.bot))
                         this.bot.emit(data.t.includes("ADD") ? "guild.member" : "guild.member.edit", member, guild)
                     }
                     break
@@ -375,6 +376,9 @@ export default class PetalsWS extends ws {
                     }
                     confirmShard = this.useShard(parsedData.guild)
                     if (confirmShard) this.bot.emit("voice.server.edit", parsedData)
+                    break
+                case "INTERACTION_CREATE":
+                    this.bot.emit("slash", new Interaction(data.d, this.bot))
                     break
                 }
                 break

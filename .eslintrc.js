@@ -38,10 +38,6 @@ module.exports = {
         "no-case-declarations": [
             "off"
         ],
-        "linebreak-style": [
-            "error",
-            "unix"
-        ],
         "quotes": [
             "error",
             "double"

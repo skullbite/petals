@@ -1,11 +1,10 @@
 import Base from "./base"
-import { DMChannel } from "./channel"
 import { avatarURL } from "../http/cdn"
-import PetalsFile from "../utils/file"
 import type Role from "./role"
 import PetalsPermissions from "./permissions"
 import Pile from "../utils/pile"
 import FlagHandler from "../utils/flagcalc"
+import { MessageOptions } from "./message"
 
 const userFlags = {
     NONE: 0,
@@ -24,6 +23,7 @@ const userFlags = {
     EARLY_VERIFIED_BOT_DEVELOPER: 1 << 17
 }
 export class User extends Base {
+    private raw
     name: string
     discriminator: string
     bot: boolean
@@ -32,6 +32,7 @@ export class User extends Base {
     avatarIsAnimated: boolean
     constructor(data, _bot) {
         super(data.id, _bot)
+        this.raw = data
         const { username, discriminator, bot, public_flags, avatar } = data
         this.name = username
         this.discriminator = discriminator
@@ -43,43 +44,16 @@ export class User extends Base {
     get avatarURL() {
         return avatarURL(this.id, this.discriminator, this.avatar)
     }
-    async send(opts: {
-        content?: string,
-        tts?: boolean,
-        embed?: any,
-        file?: PetalsFile,
-        nonce?: string | number 
-    } | string) {
-        let data: string | { content?: string; tts?: boolean; embed?: any; file?: PetalsFile }
-        switch (typeof opts) {
-        case "string":
-            data = { content: opts }
-            break
-        case "object":
-            data = { ...opts }
-            break
-        }
-        const channel = await this._channel
-        channel.send(data)
+    get getRaw() {
+        return this.raw
     }
-    get _channel(): Promise<DMChannel> {
-        return new Promise((res) => {
-            let existing
-            for (const key of Array.from(this._bot.channels.keys())) {
-                const channel = this._bot.channels.get(key)
-                if (channel instanceof DMChannel && channel.with.id === this.id)
-                    existing = channel
-            }
-            if (existing) return res(existing)
-            else {
-                let channel 
-                this._bot.http.createDM(this.id).then(r => {
-                    channel = r
-                })
-                this._bot.channels.set(this.id, channel)
-                return channel
-            }
-        })
+    async send(opts: MessageOptions | string) {
+        const data = typeof opts === "string" ? { content: opts } : opts    
+        const channel = await this._channel()
+        return channel.send(data)
+    }
+    private async _channel() {
+        return this._bot.http.createDM(this.id)
     }
     get tag() {
         return this.name + "#" + this.discriminator 
@@ -102,6 +76,7 @@ export class TeamMember extends User {
     }
 }
 export class Member extends User {
+    private rawData
     boostedSince?: Date
     joinedAt: Date
     nick?: string
@@ -115,7 +90,8 @@ export class Member extends User {
     constructor(data, bot) {
         super(data.user, bot)
         const { premium_since, nick, mute, deaf, joined_at, is_pending, guild_id, roles, hoisted_role } = data
-        this.boostedSince = premium_since
+        this.rawData = data
+        this.boostedSince = new Date(premium_since)
         this.joinedAt = new Date(joined_at)
         this.muted = mute
         this.deafened = deaf
@@ -138,6 +114,9 @@ export class Member extends User {
     get topRole() {
         const p = Array.from(this.roles.values()).map(d => d.position)
         return this.roles.getFirst(r => Math.max(...p) === r.position)
+    }
+    get getRaw() {
+        return this.rawData
     }
     async edit(opts: { 
         nick?: string, 
@@ -185,9 +164,6 @@ export class WidgetUser extends Base {
 }
 
 export class ClientUser extends User {
-    constructor(data, _bot) {
-        super(data, _bot)
-    }
     async edit(body: {
         username?: string,
         avatar?: Buffer

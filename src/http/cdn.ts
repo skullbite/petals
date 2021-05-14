@@ -1,4 +1,4 @@
-import { CDN_URL } from "../utils/constants"
+import { CDN_URL, API_URL } from "../utils/constants"
 
 export function emojiURL(emojiID: string): string {
     return CDN_URL + `/emojis/${emojiID}.${emojiID.startsWith("a_") ? "gif" : "png"}`
@@ -19,5 +19,5 @@ export function avatarURL(userID: string, discriminator?: string, hash?: string)
     return CDN_URL + endpoint
 }
 export function guildWidgetImage(guildID: string, style: "shield"|"banner1"|"banner2"|"banner3"|"banner4"): string {
-    return `https://discord.com/api/v8/guilds/${guildID}/widget.png?style=${style}`
+    return API_URL + `/guilds/${guildID}/widget.png?style=${style}`
 }

@@ -9,6 +9,14 @@ import Embed from "./embed"
 import Emoji from "./emoji"
 import FlagHandler from "../utils/flagcalc"
 
+export const buttonStyles =  {
+    BLURPLE: 1,
+    GREY: 2,
+    GREEN: 3,
+    RED: 4,
+    URL: 5
+}
+
 const messageFlags = {
     CROSSPOSTED: 1 << 0,
     IS_CROSSPOST: 1 << 1,
@@ -37,14 +45,20 @@ export type MessageOptions =
         embed?: Embed,
         file?: PetalsFile,
         nonce?: string | number,
+        components?: {
+            url?: string,
+            style: keyof typeof buttonStyles,
+            custom_id?: string,
+            label: string,
+            disabled?: boolean
+        }[],
         allowed_mentions?: { 
             parse?: "everyone" | "roles" | "users"[], 
             users?: string[], 
             roles?: string[] 
-        }
-    } | string
-
-export default class Message extends Base {
+        },
+    }
+abstract class BaseMessage extends Base {
     referenceMessage?: Message
     pinned: boolean
     mentions: string[]
@@ -60,7 +74,8 @@ export default class Message extends Base {
     editedTimestamp?: Date
     type: string
     webhookID?: string
-    constructor(data, bot: RawClient) {
+    channelID: string
+    constructor(data, bot: RawClient, mock?: boolean) {
         super(data.id, bot)
         const {
             referenced_message,
@@ -74,20 +89,20 @@ export default class Message extends Base {
             guild_id,
             flags
         } = data
-        const author = guild_id ? { ...data.member, user: data.author, guild_id: guild_id } : data.author
+        const author = mock ? data.author : guild_id ? { ...data.member, user: data.author, guild_id: guild_id } : data.author
         this.guild = this._bot.guilds.get(guild_id)
+        this.channelID = channel_id
         this.content = content
         this.webhookID = webhook_id
         this.attachments = attachments.map(a => new Attachment(a))
         this.embeds = embeds.map(d => new Embed(d))
-        this.author = this.guild ? new Member(author, this._bot) : new User(author, this._bot)
         if (this.guild) {
-            this.author = new Member(author, this._bot)
+            this.author = data.author instanceof Member ? data.author : new Member(author, this._bot)
             this.channel = this.guild.channels.get(channel_id) as c.AnyTextable
             if (!this.channel) this._bot.fetchChannel(channel_id).then(d => this.channel = d as c.AnyTextable)
         }
         else {
-            this.author = new User(author, this._bot)
+            this.author = data.author instanceof User ? data.author : new User(author, this._bot)
             this.channel = this._bot.channels.get(channel_id) as c.AnyTextable
             if (!this.channel) {
                 const newChannel = new c.DMChannel({ id: channel_id, recipients: [data.author] }, this._bot)
@@ -150,47 +165,49 @@ export default class Message extends Base {
         case 20:
             this.type = "APPLICATION_COMMAND"
             break
+        case 21:
+            this.type = "CONVERTED_INTERACTION"
         }
     }
+    async pin() {
+        await this._bot.http.addPinnedMessage(this.channelID, this.id)
+    }
+    async unpin() {
+        await this._bot.http.deletePinnedMessage(this.channelID, this.id)
+    }
     async react(emoji: Emoji|string) {
-        await this._bot.http.addReaction(this.channel.id, this.id, emoji)
+        await this._bot.http.addReaction(this.channelID, this.id, emoji)
     }
     async removeReaction(emoji: Emoji|string, userID?: string) {
         if (userID) {
-            await this._bot.http.removeUserReaction(this.channel.id, this.id, emoji, userID)
+            await this._bot.http.removeUserReaction(this.channelID, this.id, emoji, userID)
             return
         }
-        await this._bot.http.removeUserReaction(this.channel.id, this.id, emoji)
+        await this._bot.http.removeUserReaction(this.channelID, this.id, emoji)
     }
     async removeAllReactions(emoji?: Emoji|string) {
         if (emoji) {
-            await this._bot.http.deleteReactions(this.channel.id, this.id, emoji)
+            await this._bot.http.deleteReactions(this.channelID, this.id, emoji)
             return
         }
-        await this._bot.http.deleteReactions(this.channel.id, this.id)
+        await this._bot.http.deleteReactions(this.channelID, this.id)
     }
+}
+export class Message extends BaseMessage {
     async edit(opts: {
         content?: string,
-        flags?: number,
+        flags?: 4,
         embed?: Embed,
         allowed_mentions?: any,
         nonce?: string | number 
     } | string) {
         if (this.author.id !== this._bot.user.id) throw new TypeError("Cannot edit message as it was not sent by client.")
-        let data
-        if (typeof opts === "string") data = { content: opts }
-        else {
-            data = { ...opts }
-        } 
-        return this._bot.http.editMessage(this.channel.id, this.id, data)
+        const data = typeof opts === "string" ? { content: opts } : { ...opts }
+        return this._bot.http.editMessage(this.channelID, this.id, data)
     }
-    async reply(opts: MessageOptions) {
-        let data
-        if (typeof opts === "string") data = { content: opts }
-        else {
-            data = { ...opts }
-        }
-        return this._bot.http.sendMessage(this.channel.id, {
+    async reply(opts: MessageOptions | string) {
+        const data: any = typeof opts === "string" ? { content: opts } : { ...opts }
+        return this._bot.http.sendMessage(this.channelID, {
             ...data,
             message_reference: {
                 message_id: this.id,
@@ -198,20 +215,21 @@ export default class Message extends Base {
             }
         }, this._bot)
     }
-    async findReactions(emoji: Emoji|string, options?: { before?: string, after?: string, limit?: number }) {
-        return this._bot.http.getReactions(this.channel.id, this.id, emoji, options ?? {})
+    async delete() {
+        await this._bot.http.deleteMessage(this.channel.id, this.id)
     }
-    async pin() {
-        await this._bot.http.addPinnedMessage(this.channel.id, this.id)
+}
+export class FollowupMessage extends BaseMessage {
+    token: string
+    constructor(data, bot) {
+        super(data, bot)
+        this.token = data.token
     }
-    async unpin() {
-        await this._bot.http.deletePinnedMessage(this.channel.id, this.id)
-    }
-    async announce() {
-        if (this.channel instanceof c.NewsChannel) return this.channel.crosspost(this.id)
-        throw new TypeError("Not a news channel.")
+    async edit(opts: MessageOptions | string) {
+        const data = typeof opts === "string" ? { content: opts } : { ...opts }
+        return this._bot.http.editFollowupMessage(this.token, this.id, data)
     }
     async delete() {
-        return this._bot.http.deleteMessage(this.channel.id, this.id)
+        await this._bot.http.deleteFollowupMessage(this.token, this.id)
     }
 }

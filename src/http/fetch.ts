@@ -1,4 +1,5 @@
 import fetch, { BodyInit, Response } from "node-fetch"
+import type RawClient from "../client"
 import * as RESTErrors from "../errors"
 type BasicJSON = { [x: string]: string }
 type HTTPMethods = "GET"     |
@@ -14,35 +15,49 @@ type HTTPMethods = "GET"     |
 export default class PetalsFetch {
     baseURL: string
     headers: BasicJSON
-    constructor(baseURL: string, headers: BasicJSON) {
+    private bot: RawClient
+    private lastRes: Response
+    constructor(baseURL: string, headers: BasicJSON, bot: RawClient) {
         this.baseURL = baseURL
         this.headers = headers
+        this.bot = bot
     }
-    async request(endpoint: string, reqData?: { method?: HTTPMethods, body?: BodyInit, headers?: BasicJSON }): Promise<Response> {
+    private async request(endpoint: string, reqData?: { method?: HTTPMethods, body?: BodyInit, headers?: BasicJSON }): Promise<Response> {
         if (!reqData.headers) reqData.headers = {}
         if (!reqData.headers["Content-Type"]) reqData.headers["Content-Type"] = "application/json"
         const data = {
             method: reqData.method ?? "GET",
             headers: { 
-                ...(reqData.headers ?? {}),
+                ...reqData.headers,
                 ...this.headers
             },
             body: reqData.body
         }
         if (!reqData.body) delete data.body
+        // TODO: not a permanent solution
+        /* if (this.lastRes) {
+            if (this.lastRes.headers["X-RateLimit-Remaining"] === 0) await new Promise(resolve => setTimeout(resolve, this.lastRes.headers["X-RateLimit-Reset"] - Date.now() ))
+        } */
         const req = fetch(this.baseURL+endpoint, data), res = await req
-        if (res.ok) return res
+        if (res.ok) {
+            this.lastRes = res
+            return res 
+        }
         const content = await res.json()
-        if (!content) return res
+        if (!content) { 
+            this.lastRes = res
+            return res 
+        }
+        process.once("unhandledRejection", e => this.bot.emit("error.rest", e))
         switch (res.status) {
-        case 400: throw new RESTErrors.BadRequest(`<Error Code ${content.code}> ${content.message}`)
-        case 401: throw new RESTErrors.Unauthorized(`<Error Code ${content.code}> ${content.message}`)
-        case 403: throw new RESTErrors.Forbidden(`<Error Code ${content.code}> ${content.message}`)
+        case 400: throw new RESTErrors.BadRequest(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
+        case 401: throw new RESTErrors.Unauthorized(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
+        case 403: throw new RESTErrors.Forbidden(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
         case 404: throw new RESTErrors.NotFound(content.message)
-        case 405: throw new RESTErrors.MethodNotAllowed(`<Error Code ${content.code}> ${content.message}`)
+        case 405: throw new RESTErrors.MethodNotAllowed(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
         case 429: 
             await new Promise(resolve => setTimeout(resolve, content.retry_after * 1000))
-            throw new RESTErrors.Ratelimited(content.message)
+            await this.request(endpoint, reqData)
         }
     }
     async get(endpoint: string, reqData?: { body?: BodyInit, headers?: BasicJSON }) {

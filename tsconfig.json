@@ -9,5 +9,6 @@
         "declaration": true,
         "strict": false,
         "newLine": "lf"
-    }
+    },
+    "exclude": ["test/**/*"]
 }

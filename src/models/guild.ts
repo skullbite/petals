@@ -10,6 +10,8 @@ import PermissionOverwrite from "./permissionoverwrite"
 import PetalsPermissions from "./permissions"
 import * as cdn from "../http/cdn"
 import FlagHandler from "../utils/flagcalc"
+import { SubsetPermissions } from "./slash/permissions"
+import { SlashTemplate } from "./slash/command"
 
 interface WidgetSettings {
     enabled: boolean
@@ -113,7 +115,6 @@ export class PartialGuild extends Base {
 }
 
 export class Guild extends PartialGuild {
-    description?: string
     region: string
     roles: Pile<string, Role>
     emojis: Pile<string, Emoji>
@@ -131,7 +132,6 @@ export class Guild extends PartialGuild {
     explicitContentFilter: number
     mfaLevel: number
     ownerID: string
-    splash?: string
     presences?: Prensence[]
     preferredLocale?: string
     memberCount: number
@@ -209,7 +209,7 @@ export class Guild extends PartialGuild {
             case 6:
                 this.channels.set(d.id, new c.StoreChannel(d, this._bot))
                 break
-            case 13: 
+            case 13:
                 this.channels.set(d.id, new c.StageChannel(d, this._bot))
                 break
             }
@@ -238,6 +238,12 @@ export class Guild extends PartialGuild {
     }
     get channelsInOrder() {
         return Array.from(this.channels.values()).sort((a, b) => b.position - a.position)
+    }
+    async getAllSlashPermissions() {
+        return this._bot.http.getAllGuildCommandPermissions(this.id)
+    }
+    async editSlashPermissions(commandID: string, permissions: SubsetPermissions[]) {
+        return this._bot.http.editGuildCommandPermissions(this.id, commandID, permissions)
     }
     async getAuditLogs(options?: {
         user_id?: string,
@@ -302,6 +308,33 @@ export class Guild extends PartialGuild {
     }
     async deleteEmoji(emojiID: string) {
         await this._bot.http.deleteGuildEmoji(this.id, emojiID)
+    }
+    async fetchCommands() {
+        return this._bot.http.getGuildSlashCommands(this.id)
+    }
+    async fetchCommand(commandID: string) {
+        return this._bot.http.getGuildSlashCommand(this.id, commandID)
+    }
+    async createCommand(body: SlashTemplate) {
+        return this._bot.http.createGuildSlashCommand(this.id, body)
+    }
+    async editCommand(commandID: string, body: SlashTemplate) {
+        return this._bot.http.editGuildSlashCommand(this.id, commandID, body)
+    }
+    async deleteCommand(commandID: string) {
+        return this._bot.http.deleteGuildSlashCommand(this.id, commandID)
+    }
+    async massEditCommands(body: SlashTemplate[]) {
+        return this._bot.http.overwriteGuildSlashCommands(this.id, body)
+    }
+    async fetchCommandPermissions() {
+        return this._bot.http.getAllGuildCommandPermissions(this.id)
+    }
+    async editCommandPermissions(commandID: string, permissions: SubsetPermissions[]) {
+        await this._bot.http.editGuildCommandPermissions(this.id, commandID, permissions)
+    }
+    async massEditCommandPermissions(permissions: { id: string, permissons: SubsetPermissions[] }[]) {
+        await this._bot.http.massEditGuildSlashCommandPermissions(this.id, permissions)
     }
     async repositionChannel(channelID: string, position: number, reason?: string) {
         await this._bot.http.editChannelPositions(this.id, channelID, position, reason ?? "")

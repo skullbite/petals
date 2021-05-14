@@ -1,6 +1,6 @@
 import RawClient, { ClientEvents, ClientOptions } from "../client"
 import Pile from "../utils/pile"
-import Message from "../models/message"
+import { Message } from "../models/message"
 import { guildPermissions } from "../models/permissions"
 import { Member } from "../models/user"
 import Category from "./category"
@@ -9,12 +9,16 @@ import CommandContext from "./context"
 import * as Converters from "./converter"
 import * as Errors from "./errors"
 import { escapeRegex } from "./index"
+import Interaction from "../models/slash/interaction"
 
 interface CommandOptions {
-    prefix: string | string[] | ((m: Message) => string | string[] | (() => string | string[]) )
+    prefix: string | string[] | ((m: Message) => string | string[] | (() => string | string[]))
+    /** @deprecated Currently does not work. */
     usePrefixSpaces?: boolean
     ownerID?: string | string[]
     useRESTFetching?: boolean
+    listenForSlash?: boolean
+    syncWithSlash?: boolean
 }
 
 interface CommandEvents<T> extends ClientEvents<T> {
@@ -23,26 +27,48 @@ interface CommandEvents<T> extends ClientEvents<T> {
     (event: "cmd.error", listener: (ctx: CommandContext, error: Errors.ErrorTypes) => void): T
     (event: "cmd.cooldown", listener: (ctx: CommandContext, left: number) => void): T
 }
+
+type cooldown = Pile<string, Pile<string, number>>
+interface Cooldowns {
+    users: cooldown
+    guilds: cooldown
+    channels: cooldown
+}
 export default class CommandClient extends RawClient {
     commands: Pile<string, cmd>
     categories: Pile<string, Category>
-    cooldowns: Pile<string, Pile<string, number>>
+    cooldowns: Cooldowns
     commandOptions: CommandOptions
-    uwu: Function
-    on: CommandEvents<this>
+    declare on: CommandEvents<this>
     constructor(CommandOptions: CommandOptions, ClientOptions: ClientOptions) {
         super(ClientOptions)
         this.commands = new Pile
         this.categories = new Pile
-        this.cooldowns = new Pile
+        this.cooldowns = {
+            users: new Pile,
+            guilds: new Pile,
+            channels: new Pile
+        }
         this.commandOptions = Object.assign({
             usePrefixSpaces: false,
-            ownerID: "",
-            useRESTFetching: true
+            useRESTFetching: true,
+            listenForSlash: false,
+            syncWithSlash: false
         }, CommandOptions)
         if (!this.commandOptions.prefix || this.commandOptions.prefix === [] || this.commandOptions.prefix === "") throw new Error("Empty Prefix Caught.")
+        if (this.commandOptions.prefix === "/" || (this.commandOptions.prefix as string[]).includes("/")) console.warn("\x1b[33mWARNING: Things could get hairy when using '/' as a prefix. Proceed with caution.\x1b[0m")
         this.once("ready", () => {
             if (!this.getCommand("help")) this.addCommand(this.defaultHelp)
+            if (!this.listenerCount("msg")) this.on("msg", async (m) => await this.processCommands(m))
+            if (!this.listenerCount("slash") && this.commandOptions.listenForSlash) this.on("slash", async (i) => await this.processCommands(i))
+            if (this.commandOptions.syncWithSlash) {
+                if (this.commands.size > 100) throw new Error("To sync slash commands with yours, you can only have up to 100 commands registered.")
+                const cmds = []
+                Array.from(this.commands.values()).map(d => {
+                    cmds.push(d.convertToSlash())
+                })
+                this.massSetGlobalCommands(cmds)
+            }
             typeof this.commandOptions.prefix === "function" &&
                 (this.commandOptions.prefix.length === 0 || this.commandOptions.prefix.length === 1)
                 ? this.commandOptions.prefix = this.commandOptions.prefix.bind(this)() : {}
@@ -58,10 +84,6 @@ export default class CommandClient extends RawClient {
                 break
             }
         })
-        this.once("ready", async () => {
-            if (!this.listenerCount("msg")) this.on("msg", async (m) => await this.processCommands(m))
-        })
-
     }
     getHelp(ctx: CommandContext, command?: Command) {
         const
@@ -90,11 +112,13 @@ export default class CommandClient extends RawClient {
         this.categories.delete(name)
         if (category.path) delete require.cache[require.resolve(category.path)]
     }
-    reloadCategory(name: string) {
+    reloadCategory(name: string, useDefault?: boolean) {
         const cat = this.getCategory(name)
+        if (!cat) throw new Error("No category found.")
         this.unloadCategory(name)
         if (!cat.path) throw new Error("No path to reload from.")
-        this.loadCategory(require(cat.path))
+        const module = useDefault ? require(cat.path).default : require(cat.path)
+        this.loadCategory(module)
     }
     getCategory(name: string) { return this.categories.get(name) }
     addCommand(cmd: cmd) {
@@ -118,7 +142,7 @@ export default class CommandClient extends RawClient {
             if (new Set(cmd.aliases).size !== cmd.aliases.length) throw new Error("Command aliases already registered.")
         }
         this.commands.set(cmd.name, cmd)
-        if (cmd.cooldown) this.cooldowns.set(cmd.name, new Pile)
+        if (cmd.cooldown) this.cooldowns[cmd.cooldown.bucketType].set(cmd.name, new Pile)
     }
     removeCommand(name: string) {
         const cmd = this.getCommand(name)
@@ -127,14 +151,15 @@ export default class CommandClient extends RawClient {
         if (!cmd.category || !cmd.path) return
         delete require.cache[require.resolve(cmd.path)]
     }
-    reloadCommand(name: string) {
+    reloadCommand(name: string, useDefault?: boolean) {
         const tempCmd = this.getCommand(name)
         if (!tempCmd) throw new Error("No command found.")
         if (!tempCmd.path) throw new Error("No path to reload from.")
         this.removeCommand(tempCmd.name)
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
-            this.addCommand(require(tempCmd.path))
+            const module = useDefault ? require(tempCmd.path).default : require(tempCmd.path)
+            this.addCommand(module)
         }
         catch (e) {
             this.addCommand(tempCmd)
@@ -149,7 +174,7 @@ export default class CommandClient extends RawClient {
         return cmd instanceof Array ? cmd[0] : cmd
     }
     cleanMention(stringWithMention: string, ctx: CommandContext) {
-        return stringWithMention.replace(new RegExp(`<@!?${this.user.id}>`, "g"), `@${ctx.guild ? ctx.guild.me && ctx.guild.me.nick ? ctx.guild.me.nick : this.user.name : this.user.name}`)
+        return stringWithMention.replace(new RegExp(`<@!?${this.user.id}>`, "g"), `@${ctx.guild?.me.nick ?? this.user.name}`)
     }
     defaultHelp = new Command({ name: "help" })
         .setArgs([{ name: "cm", type: "str", useRest: true }])
@@ -185,18 +210,24 @@ export default class CommandClient extends RawClient {
                 return ctx.send(`\`🌺\` Command Help | \`${cmd.parent ? ctx.bot.getCommand(cmd.parent).name+" "+cmd.name : cmd.name}\`\n> Description: ${cmd.description ? cmd.description : "No Description."}\n> Usage: \`${ctx.bot.getHelp(ctx, cmd)}\`${cmd.cooldown ? `\n> Cooldown: ${cmd.cooldown}ms` : ""}${(cmd as Group).subcommands ? `\n> Subcommands: ${Array.from((cmd as Group).subcommands.values()).map((a: Command) => a.name).join(", ")}` : ""}`)
             }
         })
-    async processCommands(msg: Message): Promise<void> {
+    async processCommands(msg: Message | Interaction): Promise<void> {
+        const prefixToUse = msg instanceof Interaction ? "/" : this.commandOptions.prefix
+        let i
+        if (msg instanceof Interaction) { 
+            i = msg
+            msg = msg.asMessage 
+        }
         if (msg.author.bot) return
         let re: string, p: unknown[], pre
-        switch (typeof this.commandOptions.prefix) {
+        switch (typeof prefixToUse) {
         case "string":
-            re = `${this.commandOptions.prefix}`
+            re = prefixToUse
             break
         case "object":
-            re = `${this.commandOptions.prefix.map(e => e).join("|")}`
+            re = prefixToUse.map(e => e).join("|")
             break
         case "function":
-            pre = await this.commandOptions.prefix.bind(this)(this, msg)
+            pre = await prefixToUse.bind(this)(this, msg)
             switch (typeof pre) {
             case "string":
                 re = `${pre}`
@@ -215,17 +246,17 @@ export default class CommandClient extends RawClient {
         // eslint-disable-next-line no-fallthrough
         default: throw new Error(`Prefix must be string, array or function. Not ${typeof this.commandOptions.prefix}`)
         }
-        const prefixArray = msg.content.match(new RegExp(`(${re})${this.commandOptions.usePrefixSpaces ? "\\s*?" : ""}`, "i"))
+        const prefixArray = Array.from(msg.content.match(new RegExp(`(${re})`, "i")))
         if (!prefixArray) return
         const prefix = prefixArray[0]
         if (!prefix) return
         const 
-            args = msg.content.slice(prefix.length).split(" "),
-            name = args.shift().toLowerCase(),
+            args = msg.content.slice(prefix.length).split(" "), 
+            name = args.shift().toLowerCase(), 
             command = this.commands.get(name) || Array.from(this.commands.values()).filter((command) => command.aliases && command.aliases.includes(name))
         if (command instanceof Array && !command.length) return
         let cmd: cmd = command instanceof Array ? command[0] : command, parent: Command
-        const ctx = new CommandContext(msg, this, cmd, prefix)
+        const ctx = i ? new CommandContext(msg, this, cmd, prefix, i) : new CommandContext(msg, this, cmd, prefix)
         if ((cmd as Group).subcommands && args.length > 0) {
             const subcmd = (cmd as Group).getSubcommand(args.shift().toLowerCase())
             if (subcmd) {
@@ -234,6 +265,7 @@ export default class CommandClient extends RawClient {
                 cmd = subcmd
             }
         }
+        if (cmd.slashOnly && !i) return  
         if (cmd.guildOnly) {
             if (!ctx.guild) {
                 const err = new Errors.NoPrivate("NO_PRIVATE")
@@ -307,22 +339,37 @@ export default class CommandClient extends RawClient {
             return
         }
         if (cmd.cooldown) {
-            let times = this.cooldowns.get(cmd.name)
-            if (!times) {
-                this.cooldowns.set(cmd.name, new Pile)
-                times = this.cooldowns.get(cmd.name)
+            let idToUse: string
+            switch (cmd.cooldown.bucketType) {
+            case "channel": 
+                idToUse = ctx.channel.id
+                break
+            case "guild":
+                idToUse = ctx.guild?.id
+                break
+            case "user":
+                idToUse = ctx.author.id
+                break
             }
-            const now = Date.now()
-            if (times.has(msg.author.id)) {
-                const expires = times.get(msg.author.id) + cmd.cooldown
-                if (now < expires) {
-                    const left = (expires - now) / 1000
-                    this.emit("cmd.cooldown", ctx, left)
-                    return
+            if (idToUse) {
+                let times = this.cooldowns[cmd.cooldown.bucketType].get(cmd.name)
+                if (!times) {
+                    this.cooldowns[cmd.cooldown.bucketType].set(cmd.name, new Pile)
+                    times = this.cooldowns[cmd.cooldown.bucketType].get(cmd.name)
                 }
+                const now = Date.now()
+                if (times.has(idToUse)) {
+                    const expires = times.get(idToUse) + cmd.cooldown.time
+                    if (now < expires) {
+                        const left = (expires - now) / 1000
+                        this.emit("cmd.cooldown", ctx, left)
+                        return
+                    }
+                }
+                times.set(idToUse, Date.now())
+                setTimeout(() => times.delete(idToUse, cmd.cooldown.time))
             }
-            times.set(msg.author.id, Date.now())
-            setTimeout(() => times.delete(msg.author.id), cmd.cooldown)
+            
         }
         this.emit("cmd", ctx)
         try {
@@ -352,6 +399,11 @@ export default class CommandClient extends RawClient {
                 break
             case "num":
                 argg = Number(toUse)
+                break
+            case "bool":
+                if (toUse.toLowerCase().match("y|yes|true|t|1")) argg = true
+                else if (toUse.toLowerCase().match("n|no|false|f|0")) argg = false
+                else throw new Errors.InvalidArguments("INVALID_ARGS")
                 break
             case "member":
                 argg = await Converters.memberConverter(ctx, toUse)

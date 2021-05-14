@@ -15,7 +15,6 @@ export class MissingMemberPerms extends Error {
     constructor(permissionsMissing: permissionKeys[]) {
         super("MISSING_MEMBER_PERMS")
         this.permissonsMissing = permissionsMissing
-
     }
 }
 export class ExecutionError extends Error {

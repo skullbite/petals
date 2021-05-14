@@ -1,22 +1,22 @@
 import { EventEmitter } from "events"
 import { ClientUser, Member } from "./models/user"
 import { User } from "./models/user"
-import Message from "./models/message"
+import { Message, MessageOptions } from "./models/message"
 import HTTP from "./http/requests"
 import Pile from "./utils/pile"
 import { Guild } from "./models/guild"
 import Emoji from "./models/emoji"
 import * as e from "./errors"
 import * as calc from "./utils/intentcalc"
-import type PetalsFile from "./utils/file"
 import * as c from "./models/channel"
 import Role from "./models/role"
 import Invite from "./models/invite"
-import Embed from "./models/embed"
 import VoiceState from "./models/voicestate"
 import PetalsWS from "./ws"
 import Shard from "./models/shard"
 import PetalsPermissions from "./models/permissions"
+import Interaction from "./models/slash/interaction"
+import { SlashTemplate } from "./models/slash/command"
 interface EventData {
     reactionAdd: { message: Message, userID: string, emoji: string|Emoji, member?: Member, channelID: string }
     reactionRemove: { message: Message, userID: string, emoji: string|Emoji, channelID: string }
@@ -46,9 +46,11 @@ export interface ClientEvents<T> {
     (event: "invite.delete", listener: (invite: string, channel: c.GuildChannels, guild: Guild) => void): T
     (event: "voice.state.edit", listener: (stateData: VoiceState) => void): T
     (event: "webhook.edit", listener: (channel: c.GuildTextable, guild: Guild) => void): T
+    (event: "slash", listener: (interation: Interaction) => void): T
 }
 export interface ClientOptions {
     intents?: calc.wsKeys[] | number
+    shards?: number[]
     shardCount?: "auto" | number
     subscriptions?: boolean
     requestAllMembers?: boolean
@@ -106,25 +108,13 @@ export default class RawClient extends EventEmitter {
         this.messages = new Pile
         this.shards = new Pile
         this.on("shard.ready", () => this._shardsReady++)
-        this.on("error.rest", e => console.error(e))
         this.on("shard.close", (shardID) => {
             this.shards.delete(shardID)
             this._shardsReady--
         })
     }
-    async send(id: string, opts: {
-        content?: string,
-        tts?: boolean,
-        embed?: Embed,
-        file?: PetalsFile,
-        nonce?: string | number 
-    } | string) {
-        let data
-        if (typeof opts === "string") data = { content: opts }
-        else {
-            data = { ...opts }
-            if (data.embed) data.embed = data.embed.toJSON
-        } 
+    async send(id: string, opts: MessageOptions | string) {
+        const data = typeof opts === "string" ? { content: opts } : opts
         return this.http.sendMessage(id, data, this)
     }
     async changeStatus({ name, type=0, url="", status="online" }: {
@@ -163,6 +153,24 @@ export default class RawClient extends EventEmitter {
     }
     async fetchChannel(channelID: string) {
         return this.http.getChannel(channelID)
+    }
+    async fetchGlobalCommands() {
+        return this.http.getGlobalSlashCommands()
+    }
+    async fetchGlobalCommand(commandID: string) {
+        return this.http.getGlobalSlashCommand(commandID)
+    }
+    async createGlobalCommand(body: SlashTemplate) {
+        return this.http.createGlobalSlashCommand(body)
+    }
+    async editGlobalCommand(commandID: string, body: SlashTemplate) {
+        return this.http.editGlobalSlashCommand(commandID, body)
+    }
+    async deleteGlobalCommand(commandID: string) {
+        await this.http.deleteGlobalSlashCommand(commandID)
+    }
+    async massSetGlobalCommands(body: SlashTemplate[]) {
+        return this.http.overwriteGlobalSlashCommands(body)
     }
     async createGuild(body: {
         name: string,
@@ -212,7 +220,14 @@ export default class RawClient extends EventEmitter {
         }
         else totalShards = this.opts.shardCount
         if (totalShards <= 0) throw new Error("Invalid shard count provided!")
-        for (let i = 0; i < totalShards; i++) {
+        if (this.opts.shards) for (let i = 0; i < this.opts.shards.length; i++) {
+            if (this.opts.shards[i] >= totalShards) throw new Error("Invalid shards provided!")
+            if (this.shards.get(this.opts.shards[i])) throw new Error("Duplicate shard detected!")
+            const ws = new PetalsWS(this, this.opts.shards[i], totalShards)
+            this.shards.set(this.opts.shards[i], new Shard(this.opts.shards[i], ws, this))
+            await new Promise(resolve => setTimeout(resolve, 6e3))
+        }
+        else for (let i = 0; i < totalShards; i++) {
             const ws = new PetalsWS(this, i, totalShards)
             this.shards.set(i, new Shard(i, ws, this)) 
             await new Promise(resolve => setTimeout(resolve, 6e3))
