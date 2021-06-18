@@ -31,7 +31,7 @@ interface commandOptions {
     aliases?: string[]
     description?: string
     cooldown?: {
-        bucketType: "guild"|"channel"|"user"|"yeehaw"
+        bucketType: "guild"|"channel"|"user"
         time: number
     }
     slashOnly?: boolean
