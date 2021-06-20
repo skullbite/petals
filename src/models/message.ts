@@ -50,8 +50,9 @@ export type MessageOptions =
             style: keyof typeof buttonStyles,
             custom_id?: string,
             label: string,
-            disabled?: boolean
-        }[],
+            disabled?: boolean,
+            emoji?: string
+        }[][],
         allowed_mentions?: { 
             parse?: "everyone" | "roles" | "users"[], 
             users?: string[], 

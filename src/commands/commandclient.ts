@@ -56,7 +56,7 @@ export default class CommandClient extends RawClient {
             syncWithSlash: false
         }, CommandOptions)
         if (!this.commandOptions.prefix || this.commandOptions.prefix === [] || this.commandOptions.prefix === "") throw new Error("Empty Prefix Caught.")
-        if (this.commandOptions.prefix === "/" || (this.commandOptions.prefix as string[]).includes("/")) console.warn("\x1b[33mWARNING: Things could get hairy when using '/' as a prefix. Proceed with caution.\x1b[0m")
+        if (this.commandOptions.prefix === "/" || typeof this.commandOptions.prefix === "object" && this.commandOptions.prefix.includes("/")) console.warn("\x1b[33mWARNING: Things could get hairy when using '/' as a prefix. Proceed with caution.\x1b[0m")
         this.once("ready", () => {
             if (!this.getCommand("help")) this.addCommand(this.defaultHelp)
             if (!this.listenerCount("msg")) this.on("msg", async (m) => await this.processCommands(m))
@@ -246,10 +246,15 @@ export default class CommandClient extends RawClient {
         // eslint-disable-next-line no-fallthrough
         default: throw new Error(`Prefix must be string, array or function. Not ${typeof this.commandOptions.prefix}`)
         }
-        const prefixArray = Array.from(msg.content.match(new RegExp(`(${re})`, "i")))
-        if (!prefixArray) return
-        const prefix = prefixArray[0]
-        if (!prefix) return
+        let prefixArray, prefix
+        try {
+            prefixArray = Array.from(msg.content.match(new RegExp(`(${re})`, "i")))
+            if (!prefixArray) return
+            prefix = prefixArray[0]
+            if (!prefix) return
+        }
+        catch { return }
+        
         const 
             args = msg.content.slice(prefix.length).split(" "), 
             name = args.shift().toLowerCase(), 
@@ -386,7 +391,7 @@ export default class CommandClient extends RawClient {
         const properArgs = {}
         const requiredArgs = Array.from(cmd.args).reduce((a, c) => a + Number(c.required), 0)
         if (args.length < requiredArgs) throw new Errors.MissingArguments("MISSING_ARGS")
-        if (args.length > cmd.args.length && !cmd.args[cmd.args.length - 1].useRest) throw new Errors.InvalidArguments("INVALID_ARGS")
+        // if (args.length > cmd.args.length && !cmd.args[cmd.args.length - 1].useRest) throw new Errors.InvalidArguments("INVALID_ARGS")
         for (let i = 0; i < cmd.args.length; i++) {
             let argg: argumentTypes
             const 
@@ -418,6 +423,7 @@ export default class CommandClient extends RawClient {
                 argg = await Converters.roleConverter(ctx, toUse)
                 break
             }
+            
             if (argument.required && (Number.isNaN(argg) || argg === "" || ((argument.type === "member" || argument.type === "user") && !argg))) throw new Errors.InvalidArguments("INVALID_ARGS")
             properArgs[argument.name] = argg
             if (argument.useRest) break

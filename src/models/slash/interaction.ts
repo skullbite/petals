@@ -83,9 +83,9 @@ class InteractionData extends Base {
 export default class Interaction extends Base {
     applicationID: string
     type: 1 | 2
-    data?: InteractionData
     guildID?: string
     channelID?: string
+    data?: InteractionData
     member?: Member
     user?: User
     token: string
@@ -95,17 +95,18 @@ export default class Interaction extends Base {
         const { application_id, type, data, guild_id, channel_id, member, user, token, version } = d
         this.applicationID = application_id
         this.type = type
-        if (data) {
+        if (data && !data.custom_id) {
             Object.assign(d, { guild_id: this.guildID })
             this.data = new InteractionData(data, this._bot)
         }
+        else this.data = data
         this.guildID = guild_id
         this.channelID = channel_id
         if (member) { 
             Object.assign(member, { guild_id: this.guildID })
             this.member = new Member(member, this._bot) 
         }
-        this.user = user ? new User(user, this._bot) : undefined
+        this.user = user ? new User(user ?? member.user, this._bot) : new User(member.user, this._bot)
         this.token = token
         this.version = version
     }
@@ -143,4 +144,9 @@ export default class Interaction extends Base {
         const data = typeof opts === "string" ? { content: opts } : opts
         return this._bot.http.createFollowupMessage(this.token, data)
     }
+}
+
+export class ButtonInteraction extends Interaction { 
+    // @ts-ignore
+    declare data: { custom_id: string, component_type: number }
 }

@@ -15,7 +15,7 @@ import VoiceState from "./models/voicestate"
 import PetalsWS from "./ws"
 import Shard from "./models/shard"
 import PetalsPermissions from "./models/permissions"
-import Interaction from "./models/slash/interaction"
+import Interaction, { ButtonInteraction } from "./models/slash/interaction"
 import { SlashTemplate } from "./models/slash/command"
 interface EventData {
     reactionAdd: { message: Message, userID: string, emoji: string|Emoji, member?: Member, channelID: string }
@@ -34,7 +34,8 @@ export interface ClientEvents<T> {
     (event: "guild.new"|"guild.edit"|"guild.delete"|"guild.integrations.edit", listener: (guild: Guild) => void): T
     (event: "guild.ban"|"guild.ban.remove", listener: (user: User, guild: Guild) => void): T
     (event: "guild.role.create"|"guild.role.edit"|"guild.role.delete", listener: (role: Role, guild: Guild) => void): T
-    (event: "guild.member"|"guild.member.edit"|"guild.member.leave", listener: (member: Member, guild: Guild) => void): T
+    (event: "guild.member"|"guild.member.edit", listener: (member: Member, guild: Guild) => void): T
+    (event: "guild.member.leave", listener: (user: User, guild: Guild) => void): T
     (event: "channel.create"|"channel.edit"|"channel.delete", listener: (channel: c.GuildChannels) => void): T
     (event: "channel.pins.edit", listener: (timestamp: Date, channel: c.AnyTextable, guild: Guild) => void): T
     (event: "error"|"error.rest", listener: (err: e.RESTErrors) => void): T
@@ -47,6 +48,7 @@ export interface ClientEvents<T> {
     (event: "voice.state.edit", listener: (stateData: VoiceState) => void): T
     (event: "webhook.edit", listener: (channel: c.GuildTextable, guild: Guild) => void): T
     (event: "slash", listener: (interation: Interaction) => void): T
+    (event: "click", listener: (interaction: ButtonInteraction) => void): T
 }
 export interface ClientOptions {
     intents?: calc.wsKeys[] | number

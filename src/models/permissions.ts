@@ -52,9 +52,9 @@ export default class PetalsPermissions {
     get toString() {
         return String(this.bitset)
     }
-    get toJSON() {
+    get toJSON(): Record<permissionKeys, boolean> {
         const d = {}
         Object.keys(guildPermissions).forEach(gp => d[gp] = Boolean(this.bitset & BigInt(guildPermissions[gp])))
-        return d
+        return d as any
     }
 }

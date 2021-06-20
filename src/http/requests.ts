@@ -206,14 +206,24 @@ class HTTP {
         let form: fd
         if (body.embed) body.embed = body.embed.toJSON 
         if (body.components) {
-            body.components = [{ 
+            /* body.components = [{ 
                 type: 1,
-                components: body.components.map<any>((m: any) => {
+                components: body.components.map((m: any) => {
                     m.type = 2
                     m.style = buttonStyles[m.style]
                     return m
                 }) 
-            } as any]
+            } as any] */
+            body.components = body.components.map((d: any) => {
+                return { 
+                    type: 1,
+                    components: d.map((m: any) => {
+                        m.type = 2
+                        m.style = buttonStyles[m.style]
+                        return m
+                    }) 
+                } as any
+            })
         }
         if (body.file) {
             form = new fd()
@@ -259,6 +269,7 @@ class HTTP {
             guild_id?: string
         }
     }) {
+        if (body.embed) body.embed = body.embed.toJSON
         const 
             res = await this.client.patch(`/channels/${channelID}/messages/${messageID}`, {
                 body: JSON.stringify(body)
@@ -417,7 +428,7 @@ class HTTP {
     }
     async getGuild(guildID: string, withCounts?: boolean) {
         const 
-            res = await this.client.get(`/guilds/${guildID + withCounts ? "?with_counts=true" : ""}`), 
+            res = await this.client.get(`/guilds/${guildID}${withCounts ? "?with_counts=true" : ""}`), 
             data = await res.json()
         return new Guild(data, this.bot)
     }

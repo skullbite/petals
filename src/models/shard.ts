@@ -11,7 +11,7 @@ export default class Shard {
         this.bot = bot
     }
     restart() {
-        this.ws.close(1000)
+        this.ws.close(9999)
         this.bot.emit("shard.close", this.id)
         this.ws = new PetalsWS(this.bot, this.id, this.bot.opts.shardCount as number)
         this.bot.shards.set(this.id, this)

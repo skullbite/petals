@@ -185,13 +185,13 @@ export class Guild extends PartialGuild {
             this.emojis.set(d.id, new Emoji(d, this._bot)) 
         })
         this.members = new Pile
-        members.map(d => {
+        if (members) members.map(d => {
             Object.assign(d, { guild_id: this.id })
             this.members.set(d.user.id, new Member(d, bot))
         })
-        this.presences = presences.map(d => new Prensence(d, this._bot))
+        if (presences) this.presences = presences.map(d => new Prensence(d, this._bot))
         this.channels = new Pile
-        channels.map(d => {
+        if (channels) channels.map(d => {
             Object.assign(d, { guild_id: this.id })
             switch (d.type) {
             case 0:

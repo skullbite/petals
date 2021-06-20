@@ -7,7 +7,6 @@ import FlagHandler from "../utils/flagcalc"
 import { MessageOptions } from "./message"
 
 const userFlags = {
-    NONE: 0,
     DISCORD_EMPLOYEE: 1 << 0,
     PARTNERED_GUILD_OWNER: 1 << 1,
     HYPESQUAD_EVENTS: 1 << 2,
@@ -46,6 +45,11 @@ export class User extends Base {
     }
     get getRaw() {
         return this.raw
+    }
+    avatarURLAs(format: "png"|"gif"|"jpg"|"webp", size?: 128|256|512|1024|2048) {
+        if (!size) return avatarURL(this.id, this.discriminator, this.avatar, format)
+        return avatarURL(this.id, this.discriminator, this.avatar, format, size)
+
     }
     async send(opts: MessageOptions | string) {
         const data = typeof opts === "string" ? { content: opts } : opts    
@@ -91,7 +95,7 @@ export class Member extends User {
         super(data.user, bot)
         const { premium_since, nick, mute, deaf, joined_at, is_pending, guild_id, roles, hoisted_role } = data
         this.rawData = data
-        this.boostedSince = new Date(premium_since)
+        this.boostedSince = premium_since ? new Date(premium_since) : undefined
         this.joinedAt = new Date(joined_at)
         this.muted = mute
         this.deafened = deaf
@@ -114,6 +118,10 @@ export class Member extends User {
     get topRole() {
         const p = Array.from(this.roles.values()).map(d => d.position)
         return this.roles.getFirst(r => Math.max(...p) === r.position)
+    }
+    get color() {
+        const p = Array.from(this.roles.values()).filter(d => d.color).map(d => d.position)
+        return p.length ? this.roles.getFirst(r => Math.max(...p) === r.position).color : 0
     }
     get getRaw() {
         return this.rawData

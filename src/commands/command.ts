@@ -26,7 +26,7 @@ export function slashSafeArgument(d: argument["type"]) {
 }
 type commandExec = (ctx: CommandContext) => void
 export type checkExec = (ctx: CommandContext) => boolean | Promise<boolean>
-interface commandOptions {
+interface CommandOptions {
     name: string,
     aliases?: string[]
     description?: string
@@ -53,13 +53,13 @@ export class Command {
     category?: string
     parent?: string
     cooldown?: {
-        bucketType: "guild"|"channel"|"user"|"yeehaw"
+        bucketType: "guild"|"channel"|"user"
         time: number
     }
     slashOnly?: boolean
     botPerms?: permissionKeys[]
     memberPerms?: permissionKeys[]
-    constructor(opts: commandOptions) {
+    constructor(opts: CommandOptions) {
         const { name, aliases, description, cooldown, guildOnly, hidden, nsfw, slashOnly } = opts
         if (!opts) throw new Error("Command requires an object.")
         if (!opts.name || !opts.name.length) throw new Error("Command is missing a name.")
@@ -113,7 +113,7 @@ export class Command {
 export class Group extends Command {
     subcommands: Pile<string, Command>
     extCooldowns: Pile<string, Pile<string, number>>
-    constructor(opts: commandOptions) {
+    constructor(opts: CommandOptions) {
         super(opts)
         this.subcommands = new Pile
         this.extCooldowns = new Pile
