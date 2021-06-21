@@ -12,7 +12,7 @@ import { escapeRegex } from "./index"
 import Interaction from "../models/slash/interaction"
 
 interface CommandOptions {
-    prefix: string | string[] | ((m: Message) => string | string[] | (() => string | string[]))
+    prefix: string | string[] | ((c: CommandClient, m: Message) => string | string[] | (() => string | string[]))
     /** @deprecated Currently does not work. */
     usePrefixSpaces?: boolean
     ownerID?: string | string[]
@@ -75,10 +75,10 @@ export default class CommandClient extends RawClient {
             const pre = this.commandOptions.prefix
             switch (typeof pre) {
             case "string":
-                this.commandOptions.prefix = escapeRegex(pre)
+                this.commandOptions.prefix = escapeRegex(pre).replace(/ /g, "\\s")
                 break
             case "object":
-                this.commandOptions.prefix = pre.map(p => escapeRegex(p))
+                this.commandOptions.prefix = pre.map(p => escapeRegex(p).replace(/ /g, "\\s"))
                 break
             default:
                 break
@@ -237,23 +237,24 @@ export default class CommandClient extends RawClient {
                 re = `^${typeof p === "string" ? p : p.join("|")}`
                 break
             case "object":
-                re = `${pre.map((e: string) => escapeRegex(e.replace(/ /g, "\\s?").replace(/\?/g, "?"))).join("|")}`
+                re = `${pre.map((e: string) => escapeRegex(e).replace(/ /g, "\\s")).join("|")}`
                 break
             default:
                 throw new Error(`Prefix function output must be string or object (array). Not ${typeof pre}.`)
             }
+            break
 
         // eslint-disable-next-line no-fallthrough
         default: throw new Error(`Prefix must be string, array or function. Not ${typeof this.commandOptions.prefix}`)
         }
         let prefixArray, prefix
         try {
-            prefixArray = Array.from(msg.content.match(new RegExp(`(${re})`, "i")))
+            prefixArray = Array.from(msg.content.match(new RegExp(re, "i")))
             if (!prefixArray) return
             prefix = prefixArray[0]
             if (!prefix) return
         }
-        catch { return }
+        catch (e) { return }
         
         const 
             args = msg.content.slice(prefix.length).split(" "), 
