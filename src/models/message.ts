@@ -66,8 +66,7 @@ export const componentConvert = {
         disabled?: boolean
     }
 }*/
-export type MessageOptions =
-    {
+export interface MessageOptions {
         content?: string,
         tts?: boolean,
         embeds?: Embed[],
