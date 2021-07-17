@@ -10,5 +10,12 @@ export { default as Permissions } from "./src/models/permissions"
 export { default as Role } from "./src/models/role"
 export { User, Member } from "./src/models/user"
 export { default as Client } from "./src/client"
+// export { WebhookFromToken } from "./src/models/webhook" TODO
+export { default as Webhook } from "./src/models/webhook"
 export * as Commands from "./src/commands"
-export * as Errors from "./src/errors"
+export { default as PetalsFile } from "./src/utils/file"
+import { generateUnixTimestamp } from "./src/utils/timestamp"
+export { default as Color } from "./src/utils/color"
+export const Utils = {
+    generateUnixTimestamp
+}

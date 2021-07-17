@@ -148,5 +148,9 @@ export default class Interaction extends Base {
 
 export class ButtonInteraction extends Interaction { 
     // @ts-ignore
-    declare data: { custom_id: string, component_type: number }
+    declare data: { custom_id: string, component_type: 2 }
+}
+export class SelectInteraction extends Interaction {
+    // @ts-ignore
+    declare data: { custom_id: string, values: string[], component_type: 3 }
 }

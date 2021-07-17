@@ -199,7 +199,7 @@ export default class PetalsWS extends ws {
     }
     get latency() {
         let ping = Date.now()
-        this.bot.once("heartbeat", () => ping = ping - Date.now())
+        this.bot.once("ack", () => ping = ping - Date.now())
         return ping
     }
 }

@@ -9,7 +9,7 @@ import CommandContext from "./context"
 import * as Converters from "./converter"
 import * as Errors from "./errors"
 import { escapeRegex } from "./index"
-import Interaction from "../models/slash/interaction"
+import Interaction from "../models/interactions/interaction"
 
 interface CommandOptions {
     prefix: string | string[] | ((c: CommandClient, m: Message) => string | string[] | (() => string | string[]))
@@ -40,6 +40,8 @@ export default class CommandClient extends RawClient {
     cooldowns: Cooldowns
     commandOptions: CommandOptions
     declare on: CommandEvents<this>
+    declare once: CommandEvents<this>
+    declare off: CommandEvents<this>
     constructor(CommandOptions: CommandOptions, ClientOptions: ClientOptions) {
         super(ClientOptions)
         this.commands = new Pile

@@ -1,14 +1,16 @@
+import { Client } from "../.."
 import { avatarURL } from "../http/cdn"
 import PetalsFile from "../utils/file"
 import Base from "./base"
 import Embed from "./embed"
 import { User } from "./user"
+// import { WebhookHTTP } from "../http/requests"
 
 const WHtypes = {
     1: "INCOMING",
     2: "CHANNEL_FOLLOWER"
 }
-export class Webhook extends Base {
+export default class Webhook extends Base {
     type: string
     fromID?: string
     channelID: string
@@ -17,9 +19,10 @@ export class Webhook extends Base {
     token: string
     avatar?: string
     applicationID?: string
-    constructor(data, bot) {
+    constructor(data, bot: Client) {
         super(data.id, bot)
-        const { type, guild_id, channel_id, user, name, avatar, application_id } = data
+        const { type, token, guild_id, channel_id, user, name, avatar, application_id } = data
+        this.token = token
         this.type = WHtypes[type]
         this.fromID = guild_id
         this.channelID = channel_id
@@ -31,6 +34,9 @@ export class Webhook extends Base {
     get from() {
         return this._bot.guilds.get(this.fromID)
     }
+    get channel() {
+        return this.from.channels.get(this.channelID)
+    }
     get avatarURL() {
         return avatarURL(this.id, "0000", this.avatar)
     }
@@ -39,10 +45,6 @@ export class Webhook extends Base {
         avatar_url?: Buffer,
         channel_id?: string
     }) {
-        if (!this.user) {
-            if (body.channel_id) throw new Error("To alter the webhook channel ID, the webhook much be fetch from guild or channel.")
-            return this._bot.http.modifyWebhookWithToken(this.id, this.token, body)
-        }
         return this._bot.http.modifyWebhook(this.id, body)
     }
     async delete() {
@@ -83,3 +85,60 @@ export class Webhook extends Base {
         return this._bot.http.deleteWebhookMessage(this.id, this.token, messageID)
     }
 }
+/* export class WebhookFromToken {
+    id: string
+    createdAt: Date
+    token: string
+    avatar?: string
+    applicationID?: string
+    http: WebhookHTTP
+    constructor(id: string, token: string) {
+        this.id = id
+        this.http = new WebhookHTTP()
+        this.createdAt = new Date(Math.floor((Number(BigInt(id)) / 4194304) + 1420070400000))
+        this.token = token
+    }
+    async edit(body: {
+        name?: string,
+        avatar_url?: Buffer,
+        channel_id?: string
+    }) {
+        return this.http.modifyWebhook(this.id, this.token, body)
+    }
+    async delete() {
+        return this.http.deleteWebhook(this.id, this.token)
+    }
+    async send(opts: {
+        content?: string,
+        username?: string,
+        wait?: boolean,
+        avatar_url?: string,
+        tts?: boolean,
+        file?: PetalsFile,
+        embeds?: Embed[],
+        allowed_mentions?: { 
+            parse?: "everyone" | "roles" | "users"[], 
+            users?: string[], 
+            roles?: string[] 
+        }
+    } | string) {
+        const data = typeof opts === "string" ? { content: opts } : opts
+        return this.http.executeWebhook(this.id, this.token, data)
+    }
+    async editMessage(messageID: string, body: {
+        content?: string,
+        embeds?: Embed[],
+        file?: PetalsFile,
+        wait?: boolean,
+        allowed_mentions?: { 
+            parse?: "everyone" | "roles" | "users"[], 
+            users?: string[], 
+            roles?: string[] 
+        }
+    }) {
+        return this.http.editWebhookMessage(this.id, this.token, messageID, body)
+    }
+    async deleteMessage(messageID: string) {
+        return this.http.deleteWebhookMessage(this.id, this.token, messageID)
+    }
+} */

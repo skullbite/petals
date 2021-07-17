@@ -3,7 +3,7 @@ import type RawClient from "../client"
 import * as fd from "form-data"
 import * as m from "mime"
 import * as f from "file-type"
-import { Message, buttonStyles, FollowupMessage, MessageOptions } from "../models/message"
+import { Message, buttonStyles, FollowupMessage, MessageOptions, componentConvert } from "../models/message"
 import PermissionOverwrites from "../models/permissionoverwrite"
 import Invite from "../models/invite"
 import Emoji from "../models/emoji"
@@ -18,13 +18,13 @@ import VoiceRegion from "../models/voiceregion"
 import Integration from "../models/integration"
 import Widget from "../models/widget"
 import Application from "../models/application"
-import { ApplicationCommand, OptionTypes, SlashTemplate } from "../models/slash/command"
+import { ApplicationCommand, OptionTypes, SlashTemplate } from "../models/interactions/command"
 import type PetalsFile from "../utils/file"
 import type Embed from "../models/embed"
 import { API_URL } from "../utils/constants"
-import { Webhook } from "../models/webhook"
-import { InteractionResponse, ResponseTypes } from "../models/slash/interaction"
-import CommandPermissions, { SubsetPermissions } from "../models/slash/permissions"
+import Webhook from "../models/webhook"
+import { InteractionResponse, ResponseTypes } from "../models/interactions/interaction"
+import CommandPermissions, { SubsetPermissions } from "../models/interactions/permissions"
 
 export const channelTypes = {
     TEXT: 0,
@@ -48,7 +48,7 @@ interface VanityData {
     uses: number
 }
 
-class HTTP {
+export default class HTTP {
     private bot: RawClient
     private client: PetalsFetch
     constructor(bot: RawClient) {
@@ -204,24 +204,16 @@ class HTTP {
     }
     async sendMessage(channelID: string, body: MessageOptions, bot) {
         let form: fd
-        if (body.embed) body.embed = body.embed.toJSON 
+        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
         if (body.components) {
-            /* body.components = [{ 
-                type: 1,
-                components: body.components.map((m: any) => {
-                    m.type = 2
-                    m.style = buttonStyles[m.style]
-                    return m
-                }) 
-            } as any] */
-            body.components = body.components.map((d: any) => {
+            body.components = body.components.map((d) => {
                 return { 
                     type: 1,
-                    components: d.map((m: any) => {
-                        m.type = 2
-                        m.style = buttonStyles[m.style]
+                    components: d.components.map((m: any) => {
+                        m.type = componentConvert[m.type]
+                        if (m.style) m.style = buttonStyles[m.style]
                         return m
-                    }) 
+                    })
                 } as any
             })
         }
@@ -259,17 +251,8 @@ class HTTP {
             body: JSON.stringify({ messages: messageIDs }) 
         })
     }
-    async editMessage(channelID: string, messageID: string, body: {
-        content?: string,
-        embed?: Embed,
-        flags?: 4,
-        allowed_mentions?: {
-            message_id: string,
-            channel_id?: string,
-            guild_id?: string
-        }
-    }) {
-        if (body.embed) body.embed = body.embed.toJSON
+    async editMessage(channelID: string, messageID: string, body: MessageOptions) {
+        if (body.embeds) body.embeds = body.embeds.map(d => d.data)
         const 
             res = await this.client.patch(`/channels/${channelID}/messages/${messageID}`, {
                 body: JSON.stringify(body)
@@ -802,13 +785,7 @@ class HTTP {
         const
             res = await this.client.get(`/webhooks/${webhookID}`),
             data = await res.json()
-        return data.map(d => new Webhook(d, this.bot))
-    }
-    async getWebhookWithToken(webhookID: string, webhookToken: string) {
-        const
-            res = await this.client.get(`/webhooks/${webhookID}/${webhookToken}`),
-            data = await res.json()
-        return data.map(d => new Webhook(d, this.bot))
+        return new Webhook(data, this.bot)
     }
     async modifyWebhook(webhookID: string, body: {
         name?: string,
@@ -822,22 +799,6 @@ class HTTP {
         }
         const
             res = await this.client.patch(`/webhooks/${webhookID}/`, {
-                body: JSON.stringify(sendable)
-            }),
-            data = await res.json()
-        return new Webhook(data, this.bot)
-    }
-    async modifyWebhookWithToken(webhookID: string, webhookToken: string, body: {
-        name?: string,
-        avatar_url?: Buffer
-    }) {
-        const sendable: any = body
-        if (body.avatar_url) { 
-            const b = await f.fromBuffer(body.avatar_url)
-            sendable.avatar_url = `data:${b.mime};base64,${body.avatar_url.toString("base64")}` 
-        }
-        const
-            res = await this.client.patch(`/webhooks/${webhookID}/${webhookToken}`, {
                 body: JSON.stringify(sendable)
             }),
             data = await res.json()
@@ -1137,4 +1098,108 @@ class HTTP {
         return await res.json()
     }
 }
-export default HTTP
+/* export class WebhookHTTP {
+    private client: WebhookFetch
+    constructor() {
+        this.client = new WebhookFetch()
+    }
+    async getWebhook(webhookID: string, webhookToken: string) {
+        const
+            res = await this.client.get(`/${webhookID}/${webhookToken}`),
+            data = await res.json()
+        return new WebhookFromToken(data.id, data.token)
+    }
+    async modifyWebhook(webhookID: string, webhookToken: string, body: {
+        name?: string,
+        avatar_url?: Buffer
+    }) {
+        const sendable: any = body
+        if (body.avatar_url) { 
+            const b = await f.fromBuffer(body.avatar_url)
+            sendable.avatar_url = `data:${b.mime};base64,${body.avatar_url.toString("base64")}` 
+        }
+        const
+            res = await this.client.patch(`/${webhookID}/${webhookToken}`, {
+                body: JSON.stringify(sendable)
+            }),
+            data = await res.json()
+        return new WebhookFromToken(data.id, data.token)
+    }
+    async deleteWebhook(webhookID: string, webhookToken: string) {
+        await this.client.delete(`/${webhookID}/${webhookToken}`)
+    }
+    async executeWebhook(webhookID: string, webhookToken: string, body: {
+        content?: string,
+        username?: string,
+        wait?: boolean,
+        avatar_url?: string,
+        tts?: boolean,
+        file?: PetalsFile,
+        embeds?: Embed[],
+        allowed_mentions?: { 
+            parse?: "everyone" | "roles" | "users"[], 
+            users?: string[], 
+            roles?: string[] 
+        }
+    }) {
+        let form: fd
+        const wait = body.wait
+        delete body.wait
+        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
+        if (body.file) {
+            form = new fd()
+            if (body.content) { 
+                form.append("content", body.content)
+                delete body.content
+            }
+            if (body.tts) { 
+                form.append("tts", body.tts) 
+                delete body.tts
+            }
+            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime())})
+            delete body.file
+            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
+        }
+        await this.client.post(`/${webhookID}/${webhookToken}${wait ? "?wait=true" : ""}`, {
+            body: form ?? JSON.stringify(body), 
+            headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
+        })
+    }
+    async editWebhookMessage(webhookID: string, webhookToken: string, messageID: string, body: {
+        content?: string,
+        embeds?: Embed[],
+        file?: PetalsFile,
+        wait?: boolean,
+        allowed_mentions?: { 
+            parse?: "everyone" | "roles" | "users"[], 
+            users?: string[], 
+            roles?: string[] 
+        }
+    }) {
+        let form: fd
+        const wait = body.wait
+        delete body.wait
+        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
+        if (body.file) {
+            form = new fd()
+            if (body.content) { 
+                form.append("content", body.content)
+                delete body.content
+            }
+            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime()) })
+            delete body.file
+            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
+        }
+        const 
+            res = await this.client.patch(`/${webhookID}/${webhookToken}/messages/${messageID}${wait ? "?wait=true" : ""}`, {
+                body: form ?? JSON.stringify(body), 
+                headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
+            }),
+            data = await res.json()
+        return data.id as string
+    }
+    async deleteWebhookMessage(webhookID: string, webhookToken: string, messageID: string) {
+        await this.client.delete(`/${webhookID}/${webhookToken}/messages/${messageID}`)
+    }
+    
+} */

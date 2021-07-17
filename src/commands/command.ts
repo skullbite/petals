@@ -4,7 +4,7 @@ import CommandContext from "./context"
 import { Member, User } from "../models/user"
 import { GuildChannels } from "../models/channel"
 import Role from "../models/role"
-import { Options, SlashTemplate } from "../models/slash/command"
+import { Options, SlashTemplate } from "../models/interactions/command"
 export type argumentTypes = string | number | boolean | Member | User | GuildChannels | Role
 export type argument = {
     name: string

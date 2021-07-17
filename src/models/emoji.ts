@@ -34,3 +34,9 @@ export default class Emoji extends Base {
         await this._bot.http.deleteGuildEmoji(this.guildID, this.id)
     }
 }
+
+export interface EmojiPartial {
+    name: string,
+    id?: string,
+    animated?: boolean
+}

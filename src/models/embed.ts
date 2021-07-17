@@ -15,7 +15,7 @@ type EmbedOpts = {
     footer?: { text: string, icon_url?: string }
 }
 export default class Embed {
-    private data
+    data
     constructor(opts?: { title?: string, description?: string, color?: number, timestamp?: Date, url?: string }) {
         if (!opts) opts = {}
         const { title, description, url, color, timestamp } = opts
@@ -38,18 +38,6 @@ export default class Embed {
         this.data[key] = value
         return this
     }
-    setURL(url: string): this {
-        this.data.url = url
-        return this
-    }
-    setColor(color: number): this {
-        this.data.color = color
-        return this
-    }
-    setTimestamp(timestamp: Date): this {
-        this.data.timestamp = timestamp
-        return this
-    }
     setFooter(text: string, icon_url?: string): this {
         this.data.footer = { text: text, icon_url: icon_url }
         return this
@@ -62,8 +50,8 @@ export default class Embed {
         this.data.image = { url: url }
         return this
     }
-    setAuthor(name: string, url?: string, icon_url?: string): this {
-        this.data.author = { name: name, url: url, icon_url: icon_url }
+    setAuthor(data: { name: string, url?: string, icon_url?: string }): this {
+        this.data.author = data
         return this
     }
     addField(name: string, value: string, inline: boolean = false): this {

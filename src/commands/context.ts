@@ -1,17 +1,17 @@
 import type { AnyTextable } from "../models/channel"
 import type { Guild } from "../models/guild"
 import type { Message,  MessageOptions } from "../models/message"
-import type Interaction from "../models/slash/interaction"
-import type { InteractionResponse } from "../models/slash/interaction"
+import type Interaction from "../models/interactions/interaction"
+import type { InteractionResponse } from "../models/interactions/interaction"
 import type { Member, User } from "../models/user"
-import type { cmd, argumentTypes } from "./command"
+import type { cmd, Command, argumentTypes } from "./command"
 import type CommandClient from "./commandclient"
 
 export default class CommandContext {
     message: Message
     bot: CommandClient
-    command: any
-    invokedSubcommand?: any
+    command: cmd
+    invokedSubcommand?: Command
     args: { [x: string]: argumentTypes }
     prefix: string
     author: User | Member
@@ -27,7 +27,7 @@ export default class CommandContext {
         this.prefix = prefix
         this.channel = message.channel
         this.author = message.author
-        this.guild = message.guild ?? undefined
+        this.guild = message.guild
         this.interaction = interaction
     }
     async respond(opts: InteractionResponse["data"] | string) {

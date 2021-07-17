@@ -6,7 +6,6 @@ import HTTP from "./http/requests"
 import Pile from "./utils/pile"
 import { Guild } from "./models/guild"
 import Emoji from "./models/emoji"
-import * as e from "./errors"
 import * as calc from "./utils/intentcalc"
 import * as c from "./models/channel"
 import Role from "./models/role"
@@ -15,8 +14,9 @@ import VoiceState from "./models/voicestate"
 import PetalsWS from "./ws"
 import Shard from "./models/shard"
 import PetalsPermissions from "./models/permissions"
-import Interaction, { ButtonInteraction } from "./models/slash/interaction"
-import { SlashTemplate } from "./models/slash/command"
+import Interaction, { ButtonInteraction, SelectInteraction } from "./models/interactions/interaction"
+import { SlashTemplate } from "./models/interactions/command"
+import { HTTPError } from "./http/fetch"
 interface EventData {
     reactionAdd: { message: Message, userID: string, emoji: string|Emoji, member?: Member, channelID: string }
     reactionRemove: { message: Message, userID: string, emoji: string|Emoji, channelID: string }
@@ -38,7 +38,8 @@ export interface ClientEvents<T> {
     (event: "guild.member.leave", listener: (user: User, guild: Guild) => void): T
     (event: "channel.create"|"channel.edit"|"channel.delete", listener: (channel: c.GuildChannels) => void): T
     (event: "channel.pins.edit", listener: (timestamp: Date, channel: c.AnyTextable, guild: Guild) => void): T
-    (event: "error"|"error.rest", listener: (err: e.RESTErrors) => void): T
+    (event: "error", listener: (err: Error) => void): T
+    (event: "error.rest", listener: (err: HTTPError) => void): T
     (event: "msg.react", listener: (data: EventData["reactionAdd"]) => void): T
     (event: "msg.react.delete", listener: (data: EventData["reactionRemove"]) => void): T
     (event: "msg.react.remove.all", listener: (data: EventData["reactionRemoveAll"]) => void): T
@@ -49,6 +50,7 @@ export interface ClientEvents<T> {
     (event: "webhook.edit", listener: (channel: c.GuildTextable, guild: Guild) => void): T
     (event: "slash", listener: (interation: Interaction) => void): T
     (event: "click", listener: (interaction: ButtonInteraction) => void): T
+    (event: "select", listener: (interaction: SelectInteraction) => void): T
 }
 export interface ClientOptions {
     intents?: calc.wsKeys[] | number
@@ -84,6 +86,8 @@ export default class RawClient extends EventEmitter {
     _shardsReady: number
     opts: ClientOptions
     on: ClientEvents<this>
+    once: ClientEvents<this>
+    off: ClientEvents<this>
     constructor(ClientOptions: ClientOptions) {
         super()
         if (!ClientOptions) throw new Error("No options provided.")
@@ -109,11 +113,6 @@ export default class RawClient extends EventEmitter {
         this.channels = new Pile
         this.messages = new Pile
         this.shards = new Pile
-        this.on("shard.ready", () => this._shardsReady++)
-        this.on("shard.close", (shardID) => {
-            this.shards.delete(shardID)
-            this._shardsReady--
-        })
     }
     async send(id: string, opts: MessageOptions | string) {
         const data = typeof opts === "string" ? { content: opts } : opts
@@ -231,7 +230,8 @@ export default class RawClient extends EventEmitter {
         }
         else for (let i = 0; i < totalShards; i++) {
             const ws = new PetalsWS(this, i, totalShards)
-            this.shards.set(i, new Shard(i, ws, this)) 
+            this.shards.set(i, new Shard(i, ws, this))
+            this._shardsReady++
             await new Promise(resolve => setTimeout(resolve, 6e3))
         }
         this.opts.shardCount = totalShards

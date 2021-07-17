@@ -10,8 +10,8 @@ import PermissionOverwrite from "./permissionoverwrite"
 import PetalsPermissions from "./permissions"
 import * as cdn from "../http/cdn"
 import FlagHandler from "../utils/flagcalc"
-import { SubsetPermissions } from "./slash/permissions"
-import { SlashTemplate } from "./slash/command"
+import { SubsetPermissions } from "./interactions/permissions"
+import { SlashTemplate } from "./interactions/command"
 
 interface WidgetSettings {
     enabled: boolean

@@ -6,7 +6,7 @@ import * as c from "./channel"
 import type RawClient from "../client"
 import type PetalsFile from "../utils/file"
 import Embed from "./embed"
-import Emoji from "./emoji"
+import Emoji, { EmojiPartial } from "./emoji"
 import FlagHandler from "../utils/flagcalc"
 
 export const buttonStyles =  {
@@ -38,27 +38,73 @@ class Attachment {
     }
 }
 
+export const componentConvert = {
+    BUTTON: 2,
+    SELECT: 3
+}
+
+/*interface ComponentTypes {
+    BUTTONS: {
+        url?: string,
+        style: keyof typeof buttonStyles,
+        custom_id?: string,
+        label: string,
+        disabled?: boolean,
+        emoji?: EmojiPartial
+    }[],
+    SELECT: {
+        custom_id: string,
+        options: {
+            label: string,
+            value: string,
+            description?: string,
+            emoji?: EmojiPartial
+        }[],
+        placeholder?: string,
+        min_values?: number,
+        max_values?: number,
+        disabled?: boolean
+    }
+}*/
 export type MessageOptions =
     {
         content?: string,
         tts?: boolean,
-        embed?: Embed,
+        embeds?: Embed[],
         file?: PetalsFile,
         nonce?: string | number,
         components?: {
-            url?: string,
-            style: keyof typeof buttonStyles,
-            custom_id?: string,
-            label: string,
-            disabled?: boolean,
-            emoji?: string
-        }[][],
+            components: ({
+                type: keyof typeof componentConvert
+                url?: string,
+                style: keyof typeof buttonStyles,
+                custom_id?: string,
+                label: string,
+                disabled?: boolean,
+                emoji?: EmojiPartial
+            } |
+            {
+                type: keyof typeof componentConvert,
+                custom_id: string,
+                options: {
+                    label: string,
+                    value: string,
+                    description?: string,
+                    emoji?: EmojiPartial
+                }[],
+                placeholder?: string,
+                min_values?: number,
+                max_values?: number,
+                disabled?: boolean
+            })[]
+
+        }[]
         allowed_mentions?: { 
             parse?: "everyone" | "roles" | "users"[], 
             users?: string[], 
             roles?: string[] 
-        },
-    }
+        }
+}
 abstract class BaseMessage extends Base {
     referenceMessage?: Message
     pinned: boolean
@@ -195,13 +241,7 @@ abstract class BaseMessage extends Base {
     }
 }
 export class Message extends BaseMessage {
-    async edit(opts: {
-        content?: string,
-        flags?: 4,
-        embed?: Embed,
-        allowed_mentions?: any,
-        nonce?: string | number 
-    } | string) {
+    async edit(opts: MessageOptions | string) {
         if (this.author.id !== this._bot.user.id) throw new TypeError("Cannot edit message as it was not sent by client.")
         const data = typeof opts === "string" ? { content: opts } : { ...opts }
         return this._bot.http.editMessage(this.channelID, this.id, data)
