@@ -7,9 +7,9 @@ import type { Member, User } from "../models/user"
 import type { cmd, Command, argumentTypes } from "./command"
 import type CommandClient from "./commandclient"
 
-export default class CommandContext {
+export default class CommandContext<T = CommandClient> {
     message: Message
-    bot: CommandClient
+    bot: T
     command: cmd
     invokedSubcommand?: Command
     args: { [x: string]: argumentTypes }
@@ -18,7 +18,7 @@ export default class CommandContext {
     channel: AnyTextable
     guild?: Guild
     interaction?: Interaction
-    constructor(message: Message, bot: CommandClient, command: cmd, prefix: string, interaction?: Interaction) {
+    constructor(message: Message, bot, command: cmd, prefix: string, interaction?: Interaction) {
         this.message = message
         this.bot = bot
         this.command = command

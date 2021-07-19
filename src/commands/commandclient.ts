@@ -21,11 +21,11 @@ interface CommandOptions {
     syncWithSlash?: boolean
 }
 
-interface CommandEvents<T> extends ClientEvents<T> {
-    (event: "cmd"|"cmd.before", listener: (ctx: CommandContext) => void): T
-    (event: "cmd.after", listener: (ctx: CommandContext, timer: number) => void): T
-    (event: "cmd.error", listener: (ctx: CommandContext, error: Errors.ErrorTypes) => void): T
-    (event: "cmd.cooldown", listener: (ctx: CommandContext, left: number) => void): T
+interface CommandEvents<T = CommandClient> extends ClientEvents<T> {
+    (event: "cmd"|"cmd.before", listener: (ctx: CommandContext<T>) => void): T
+    (event: "cmd.after", listener: (ctx: CommandContext<T>, timer: number) => void): T
+    (event: "cmd.error", listener: (ctx: CommandContext<T>, error: Errors.ErrorTypes) => void): T
+    (event: "cmd.cooldown", listener: (ctx: CommandContext<T>, left: number) => void): T
 }
 
 type cooldown = Pile<string, Pile<string, number>>
@@ -264,7 +264,7 @@ export default class CommandClient extends RawClient {
             command = this.commands.get(name) || Array.from(this.commands.values()).filter((command) => command.aliases && command.aliases.includes(name))
         if (command instanceof Array && !command.length) return
         let cmd: cmd = command instanceof Array ? command[0] : command, parent: Command
-        const ctx = i ? new CommandContext(msg, this, cmd, prefix, i) : new CommandContext(msg, this, cmd, prefix)
+        const ctx = i ? new CommandContext<this>(msg, this, cmd, prefix, i) : new CommandContext<this>(msg, this, cmd, prefix)
         if ((cmd as Group).subcommands && args.length > 0) {
             const subcmd = (cmd as Group).getSubcommand(args.shift().toLowerCase())
             if (subcmd) {

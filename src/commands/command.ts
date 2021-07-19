@@ -5,6 +5,7 @@ import { Member, User } from "../models/user"
 import { GuildChannels } from "../models/channel"
 import Role from "../models/role"
 import { Options, SlashTemplate } from "../models/interactions/command"
+import CommandClient from "./commandclient"
 export type argumentTypes = string | number | boolean | Member | User | GuildChannels | Role
 export type argument = {
     name: string
@@ -24,8 +25,8 @@ export function slashSafeArgument(d: argument["type"]) {
     case "role": return "ROLE"
     }
 }
-type commandExec = (ctx: CommandContext) => void
-export type checkExec = (ctx: CommandContext) => boolean | Promise<boolean>
+type commandExec<T = CommandClient> = (ctx: CommandContext<T>) => void
+export type checkExec<T = CommandClient> = (ctx: CommandContext<T>) => boolean | Promise<boolean>
 interface CommandOptions {
     name: string,
     aliases?: string[]
@@ -39,15 +40,15 @@ interface CommandOptions {
     hidden?: boolean
     nsfw?: boolean
 }
-export class Command {
+export class Command<T = CommandClient> {
     name: string
-    exec: commandExec
+    exec: commandExec<T>
     aliases?: string[]
     description?: string
     hidden?: boolean
     guildOnly?: boolean
     nsfw?: boolean
-    checks?: checkExec[]
+    checks?: checkExec<T>[]
     args?: argument[]
     path?: string
     category?: string
@@ -72,7 +73,7 @@ export class Command {
         this.nsfw = nsfw ?? false
         this.slashOnly = slashOnly ?? false
     }
-    setExec(exec: commandExec): this {
+    setExec(exec: commandExec<T>): this {
         this.exec = exec  
         return this 
     }
@@ -80,7 +81,7 @@ export class Command {
         this.args = args
         return this
     }
-    setChecks(checks: checkExec[]): this {
+    setChecks(checks: checkExec<T>[]): this {
         this.checks = checks
         return this
     }
@@ -110,19 +111,19 @@ export class Command {
     }
 }
 
-export class Group extends Command {
-    subcommands: Pile<string, Command>
+export class Group<T = CommandClient> extends Command {
+    subcommands: Pile<string, Command<T>>
     extCooldowns: Pile<string, Pile<string, number>>
     constructor(opts: CommandOptions) {
         super(opts)
         this.subcommands = new Pile
         this.extCooldowns = new Pile
     }
-    getSubcommand(q: string): cmd { 
+    getSubcommand(q: string): Command<T> { 
         const cmd = this.subcommands.get(q) || Array.from(this.subcommands.values()).filter((command) => command.aliases && command.aliases.includes(q)) 
         return cmd instanceof Array ? cmd[0] : cmd
     }
-    addSubcommand(cmd: Command): this {
+    addSubcommand(cmd: Command<T>): this {
         const check = this.getSubcommand(cmd.name)
         if (check) throw new Error(`${this.name}: Subcommand name/alias has already been registed.`)
         if (!cmd.exec) throw new Error(`${this.name}: Subcommand is missing "exec" function.`)
@@ -162,4 +163,4 @@ export class Group extends Command {
     }
 }
 
-export type cmd = Command | Group
+export type cmd<T = CommandClient> = Command<T> | Group<T>

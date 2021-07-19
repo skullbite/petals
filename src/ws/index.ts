@@ -93,7 +93,9 @@ export default class PetalsWS extends ws {
                 if (this.bot.opts.reconnect) this.bot.shards.get(this.loginPayload.shards[0]).restart()
                 else if (this.bot._shardsReady === 0) process.exit()
                 break
-            case 9999: break
+            case 3333: 
+                this.bot._allShardsReady = false
+                break
             default: 
                 this.bot.emit("error", new Error(`${d}: Session Closed`))
                 this.bot._allShardsReady = false
