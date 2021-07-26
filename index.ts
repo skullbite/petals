@@ -16,6 +16,8 @@ export * as Commands from "./src/commands"
 export { default as PetalsFile } from "./src/utils/file"
 import { generateUnixTimestamp } from "./src/utils/timestamp"
 export { default as Color } from "./src/utils/color"
+import { version } from "./package.json"
 export const Utils = {
-    generateUnixTimestamp
+    generateUnixTimestamp,
+    version
 }

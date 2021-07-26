@@ -18,6 +18,11 @@ export default class Shard {
         this.bot.shards.set(this.id, this)
         this.bot._shardsReady++
     }
+    close() {
+        this.ws.close(3333)
+        this.bot._shardsReady--
+        this.bot.shards.delete(this.id)
+    }
     get latency() {
         return this.ws.latency
     }

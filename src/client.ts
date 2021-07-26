@@ -52,6 +52,14 @@ export interface ClientEvents<T> {
     (event: "click", listener: (interaction: ButtonInteraction) => void): T
     (event: "select", listener: (interaction: SelectInteraction) => void): T
 }
+
+const activityTypes = {
+    PLAYING: 0,
+    STREAMING: 1,
+    LISTENING: 2,
+    WATCHING: 3,
+    COMPETING: 5
+}
 export interface ClientOptions {
     intents?: calc.wsKeys[] | number
     shards?: number[]
@@ -68,7 +76,6 @@ export interface ClientOptions {
         messages?: boolean
     }
 }
-
 export default class RawClient extends EventEmitter {
     http: HTTP
     user: ClientUser
@@ -118,9 +125,9 @@ export default class RawClient extends EventEmitter {
         const data = typeof opts === "string" ? { content: opts } : opts
         return this.http.sendMessage(id, data, this)
     }
-    async changeStatus({ name, type=0, url="", status="online" }: {
+    async changeStatus({ name, type="PLAYING", url="", status="online" }: {
         name: string, 
-        type?: 0|1|2|3|4|5|6, 
+        type?: keyof typeof activityTypes, 
         url?: string, 
         status?: statusTypes
     }): Promise<void> {
@@ -128,7 +135,7 @@ export default class RawClient extends EventEmitter {
             since: 91879201,
             activities: [{
                 name: name,
-                type: type,
+                type: activityTypes[type],
                 url: url
             }],
             status: status,
@@ -235,5 +242,11 @@ export default class RawClient extends EventEmitter {
             await new Promise(resolve => setTimeout(resolve, 6e3))
         }
         this.opts.shardCount = totalShards
+    }
+    async logout(exit=true) {
+        if (exit) process.exit()
+        this.token = undefined
+        this.http = undefined
+        Array.from(this.shards.values()).forEach(shard => { shard.close() })
     }
 }
