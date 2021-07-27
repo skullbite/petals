@@ -252,12 +252,45 @@ export default class HTTP {
         })
     }
     async editMessage(channelID: string, messageID: string, body: MessageOptions) {
+        let form: fd
         if (body.embeds) body.embeds = body.embeds.map(d => d.data)
+        if (body.components) {
+            body.components = body.components.map((d) => {
+                return { 
+                    type: 1,
+                    components: d.components.map((m: any) => {
+                        m.type = componentConvert[m.type]
+                        if (m.style) m.style = buttonStyles[m.style]
+                        return m
+                    })
+                } as any
+            })
+        }
+        if (body.file) {
+            form = new fd()
+            if (body.content) { 
+                form.append("content", body.content)
+                delete body.content
+            }
+            if (body.tts) { 
+                form.append("tts", body.tts) 
+                delete body.tts
+            }
+            if (body.nonce) {
+                form.append("nonce", body.nonce)
+                delete body.nonce
+            }
+            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime())})
+            delete body.file
+            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
+        }
         const 
             res = await this.client.patch(`/channels/${channelID}/messages/${messageID}`, {
-                body: JSON.stringify(body)
+                body: form ?? JSON.stringify(body),
+                headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
             }),
             data = await res.json()
+
         return new Message(data, this.bot)
     }
     async crosspostMessage(channelID: string, messageID: string) {

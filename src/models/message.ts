@@ -74,7 +74,7 @@ export interface MessageOptions {
         nonce?: string | number,
         components?: {
             components: ({
-                type: keyof typeof componentConvert
+                type: "BUTTON",
                 url?: string,
                 style: keyof typeof buttonStyles,
                 custom_id?: string,
@@ -83,7 +83,7 @@ export interface MessageOptions {
                 emoji?: EmojiPartial
             } |
             {
-                type: keyof typeof componentConvert,
+                type: "SELECT",
                 custom_id: string,
                 options: {
                     label: string,
@@ -103,6 +103,10 @@ export interface MessageOptions {
             users?: string[], 
             roles?: string[] 
         }
+}
+
+interface EditOptions extends MessageOptions {
+    flags?: 4
 }
 abstract class BaseMessage extends Base {
     referenceMessage?: Message
@@ -240,7 +244,7 @@ abstract class BaseMessage extends Base {
     }
 }
 export class Message extends BaseMessage {
-    async edit(opts: MessageOptions | string) {
+    async edit(opts: EditOptions | string) {
         if (this.author.id !== this._bot.user.id) throw new TypeError("Cannot edit message as it was not sent by client.")
         const data = typeof opts === "string" ? { content: opts } : { ...opts }
         return this._bot.http.editMessage(this.channelID, this.id, data)
@@ -265,7 +269,7 @@ export class FollowupMessage extends BaseMessage {
         super(data, bot)
         this.token = data.token
     }
-    async edit(opts: MessageOptions | string) {
+    async edit(opts: EditOptions | string) {
         const data = typeof opts === "string" ? { content: opts } : { ...opts }
         return this._bot.http.editFollowupMessage(this.token, this.id, data)
     }

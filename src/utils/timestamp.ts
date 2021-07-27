@@ -8,5 +8,5 @@ const timeFormats = {
     "relative": "R"
 }
 export function generateUnixTimestamp(date: number | Date, format?: keyof typeof timeFormats ) {
-    return `<t:${date instanceof Date ? date.getTime() : date}:${format ? timeFormats[format] : "f"}>`
+    return `<t:${date instanceof Date ? Math.floor(date.getTime() / 1000) : date}:${format ? timeFormats[format] : "f"}>`
 }
