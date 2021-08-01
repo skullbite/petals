@@ -146,11 +146,21 @@ export default class Interaction extends Base {
     }
 }
 
-export class ButtonInteraction extends Interaction { 
+export class ButtonInteraction extends Interaction {
     // @ts-ignore
-    declare data: { custom_id: string, component_type: 2 }
+    data: { custom_id: string, component_type: 2 }
+    message: Message
+    constructor(d, bot) {
+        super(d, bot)
+        this.message = new Message(d.message, bot)
+    }
 }
 export class SelectInteraction extends Interaction {
     // @ts-ignore
-    declare data: { custom_id: string, values: string[], component_type: 3 }
+    data: { custom_id: string, values: string[], component_type: 3 }
+    message: Message
+    constructor(d, bot) {
+        super(d, bot)
+        this.message = new Message(d, bot)
+    }
 }
