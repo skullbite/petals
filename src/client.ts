@@ -23,6 +23,7 @@ interface EventData {
     reactionRemoveAll: { channel: c.AnyTextable, guild?: Guild, message: Message }
     reactionRemoveEmoji: { channel: c.AnyTextable, guild?: Guild, message: Message, emoji: string|Emoji }
     typing: { message: Message, userID: string, timestamp: Date, channel: c.AnyTextable, guild?: Guild, member?: Member }
+    voiceServer: { guild?: Guild, token: string, endpoint: string }
 }
 export type statusTypes = "online"|"idle"|"dnd"|"offline"
 export interface ClientEvents<T> {
@@ -47,6 +48,7 @@ export interface ClientEvents<T> {
     (event: "invite.create", listener: (invite: Invite, channel: c.GuildChannels, guild: Guild) => void): T
     (event: "invite.delete", listener: (invite: string, channel: c.GuildChannels, guild: Guild) => void): T
     (event: "voice.state.edit", listener: (stateData: VoiceState) => void): T
+    (event: "voice.server.edit", listener: (serverDate: EventData["voiceServer"]) => void): T
     (event: "webhook.edit", listener: (channel: c.GuildTextable, guild: Guild) => void): T
     (event: "slash", listener: (interation: Interaction) => void): T
     (event: "click", listener: (interaction: ButtonInteraction) => void): T
@@ -207,6 +209,12 @@ export default class RawClient extends EventEmitter {
     async getInvite(inviteCode: string, withCounts?: boolean) {
         return this.http.getInvite(inviteCode, withCounts ?? false)
     }
+    async getSticker(stickerID: string) {
+        return this.http.getSticker(stickerID)
+    }
+    async listNitroStickerPacks() {
+        return this.http.listNitroStickerPacks()
+    }
     async leaveGuild(guildID: string) {
         await this.http.leaveGuild(guildID)
     }
@@ -247,6 +255,6 @@ export default class RawClient extends EventEmitter {
         if (exit) process.exit()
         this.token = undefined
         this.http = undefined
-        Array.from(this.shards.values()).forEach(shard => { shard.close() })
+        Array.from(this.shards.values()).forEach(shard => shard.close())
     }
 }

@@ -85,9 +85,6 @@ export class TextChannel extends GuildChannel {
         this.nsfw = nsfw ?? false
         this.lastMessageID = last_message_id
     }
-    get from() {
-        return this._bot.guilds.get(this.fromID)
-    }
     async createInvite(opts: {
         max_age?: number,
         max_uses?: number,
@@ -159,6 +156,9 @@ export class VoiceChannel extends GuildChannel {
         this.userLimit = user_limit
         this.categoryID = parent_id
         this.bitrate = bitrate
+    }
+    connect(mute?: boolean, deaf?: boolean) {
+        this._bot.shards.get(this.from.shardID).ws.send(JSON.stringify({ op: 4, d: { guild_id: this.fromID, channel_id: this.id, self_mute: mute ?? false, self_deaf: deaf ?? false } }))
     }
     async createInvite(opts: {
         max_age?: number,

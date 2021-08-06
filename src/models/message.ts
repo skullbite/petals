@@ -147,12 +147,12 @@ abstract class BaseMessage extends Base {
         this.attachments = attachments.map(a => new Attachment(a))
         this.embeds = embeds.map(d => new Embed(d))
         if (this.guild) {
-            this.author = data.author instanceof Member ? data.author : new Member(author, this._bot)
-            this.channel = this.guild.channels.get(channel_id) as c.AnyTextable
-            if (!this.channel) this._bot.fetchChannel(channel_id).then(d => this.channel = d as c.AnyTextable)
+            this.author = data.author instanceof Member ? data.author : this.guild.members.get(author.user.id) ?? new Member(author, this._bot)
+            this.channel = this.guild.channels.get(channel_id) as c.GuildTextable
+            if (!this.channel) this._bot.fetchChannel(channel_id).then(d => this.channel = d as c.GuildTextable)
         }
         else {
-            this.author = data.author instanceof User ? data.author : new User(author, this._bot)
+            this.author = data.author instanceof User ? data.author : this._bot.users.get(author.id) ?? new User(author, this._bot)
             this.channel = this._bot.channels.get(channel_id) as c.AnyTextable
             if (!this.channel) {
                 const newChannel = new c.DMChannel({ id: channel_id, recipients: [data.author] }, this._bot)

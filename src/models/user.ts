@@ -5,6 +5,7 @@ import PetalsPermissions from "./permissions"
 import Pile from "../utils/pile"
 import FlagHandler from "../utils/flagcalc"
 import { MessageOptions } from "./message"
+import { MinimalVoiceState } from "./voicestate"
 
 const userFlags = {
     DISCORD_EMPLOYEE: 1 << 0,
@@ -19,7 +20,8 @@ const userFlags = {
     SYSTEM: 1 << 12,
     BUG_HUNTER_LVL_2: 1 << 14,
     VERIFIED_BOT: 1 << 16,
-    EARLY_VERIFIED_BOT_DEVELOPER: 1 << 17
+    EARLY_VERIFIED_BOT_DEVELOPER: 1 << 17,
+    DISCORD_CERTIFIED_MODERATOR: 1 << 18
 }
 export class User extends Base {
     private raw
@@ -47,9 +49,7 @@ export class User extends Base {
         return this.raw
     }
     avatarURLAs(format: "png"|"gif"|"jpg"|"webp", size?: 128|256|512|1024|2048) {
-        if (!size) return avatarURL(this.id, this.discriminator, this.avatar, format)
-        return avatarURL(this.id, this.discriminator, this.avatar, format, size)
-
+        return avatarURL(this.id, this.discriminator, this.avatar, format, size ?? 512)
     }
     async send(opts: MessageOptions | string) {
         const data = typeof opts === "string" ? { content: opts } : opts    
@@ -91,6 +91,7 @@ export class Member extends User {
     hoistedID?: string
     roles: Pile<string, Role>
     permissions: PetalsPermissions
+    voiceState: MinimalVoiceState
     constructor(data, bot) {
         super(data.user, bot)
         const { premium_since, nick, mute, deaf, joined_at, is_pending, guild_id, roles, hoisted_role } = data

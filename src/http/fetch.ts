@@ -42,7 +42,7 @@ export default class PetalsFetch {
             body: reqData.body
         }
         if (!reqData.body) delete data.body
-        // TODO: not a permanent solution
+        // TODO: Bucket Requests
         /* if (this.lastRes) {
             if (this.lastRes.headers["X-RateLimit-Remaining"] === 0) await new Promise(resolve => setTimeout(resolve, this.lastRes.headers["X-RateLimit-Reset"] - Date.now() ))
         } */

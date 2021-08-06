@@ -12,6 +12,8 @@ import * as cdn from "../http/cdn"
 import FlagHandler from "../utils/flagcalc"
 import { SubsetPermissions } from "./interactions/permissions"
 import { SlashTemplate } from "./interactions/command"
+import { MinimalVoiceState } from "./voicestate"
+import Sticker from "./sticker"
 
 interface WidgetSettings {
     enabled: boolean
@@ -139,9 +141,11 @@ export class Guild extends PartialGuild {
     unavailible: boolean
     large: boolean
     boostLevel: number
+    voiceState: MinimalVoiceState
+    stickers: Pile<unknown, unknown>
     constructor(data, bot: RawClient) {
         super(data, bot)
-        this._bot.guilds.set(this.id, this)
+        this._bot.guilds.set(this.id, this) // TODO: Handle members in a way that isn't this.
         const { 
             description, 
             region, 
@@ -170,7 +174,8 @@ export class Guild extends PartialGuild {
             system_channel_flags,
             explicit_content_filter,
             premium_tier,
-            emojis
+            emojis,
+            stickers
         } = data
         this.description = description
         this.region = region
@@ -184,11 +189,14 @@ export class Guild extends PartialGuild {
             Object.assign(d, { guild_id: this.id })
             this.emojis.set(d.id, new Emoji(d, this._bot)) 
         })
+        this.stickers = new Pile
+        stickers.map(d => this.stickers.set(d.id, new Sticker(d, this._bot)))
         this.members = new Pile
         if (members) members.map(d => {
             Object.assign(d, { guild_id: this.id })
             this.members.set(d.user.id, new Member(d, bot))
         })
+
         if (presences) this.presences = presences.map(d => new Prensence(d, this._bot))
         this.channels = new Pile
         if (channels) channels.map(d => {
@@ -398,6 +406,30 @@ export class Guild extends PartialGuild {
     }
     async fetchIntegrations() {
         return this._bot.http.getGuidIntegrations(this.id)
+    }
+    async listStickers() {
+        return this._bot.http.listGuildStickers(this.id)
+    }
+    async fetchSticker(id: string) {
+        return this._bot.http.getGuildSticker(this.id, id)
+    }
+    async createSticker(body: {
+        name: string,
+        description: string,
+        tags: string,
+        file: Buffer | { [x: string]: any }
+    }, reason?: string) {
+        return this._bot.http.createGuildSticker(this.id, body, reason ?? "")
+    }
+    async editSticker(id: string, body: {
+        name: string,
+        description?: string,
+        tags: string 
+    }, reason?: string) {
+        return this._bot.http.editGuildSticker(this.id, id, body, reason ?? "")
+    }
+    async deleteSticker(id: string, reason?: string) {
+        return this._bot.http.deleteGuildSticker(this.id, id, reason ?? "")
     }
     getWidget(style: "shield" | "banner1" | "banner2" | "banner3" | "banner4") {
         return cdn.guildWidgetImage(this.id, style)

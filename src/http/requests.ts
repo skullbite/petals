@@ -25,6 +25,7 @@ import { API_URL } from "../utils/constants"
 import Webhook from "../models/webhook"
 import { InteractionResponse, ResponseTypes } from "../models/interactions/interaction"
 import CommandPermissions, { SubsetPermissions } from "../models/interactions/permissions"
+import Sticker, { StickerPack } from "../models/sticker"
 
 export const channelTypes = {
     TEXT: 0,
@@ -395,10 +396,75 @@ export default class HTTP {
             }),
             data = await res.json()
         return new Emoji(data, this.bot)
-            
     }
     async deleteGuildEmoji(guildID: string, emojiID: string) {
         await this.client.delete(`/guilds/${guildID}/emojis/${emojiID}`)
+    }
+    /* Docs Section: Stickers */
+    async getSticker(id: string) {
+        const 
+            res = await this.client.get(`/stickers/${id}`),
+            data = await res.json()
+        return new Sticker(data, this.bot)
+    }
+    async listNitroStickerPacks(): Promise<StickerPack[]> {
+        const
+            res = await this.client.get("/sticker-packs"),
+            data = await res.json()
+        return data.map(d => new StickerPack(d, this.bot))
+    }
+    async listGuildStickers(id: string): Promise<Sticker[]> {
+        const 
+            res = await this.client.get(`/guilds/${id}/stickers`),
+            data = await res.json()
+        return data.map(d => new Sticker(d, this.bot))
+    }
+    async getGuildSticker(guildID: string, stickerID: string) {
+        const 
+            res = await this.client.get(`/guilds/${guildID}/stickers/${stickerID}`),
+            data = await res.json()
+        return new Sticker(data, this.bot)
+    }
+    async createGuildSticker(guildID: string, body: {
+        name: string,
+        description: string,
+        tags: string,
+        file: Buffer | { [x: string]: any }
+    }, reason?: string) {
+        const form = new fd()
+        form.append("name", body.name)
+        form.append("description", body.description)
+        form.append("tags", body.tags)
+        if (body.file instanceof Buffer) {
+            const b = await f.fromBuffer(body.file)
+            form.append("file", `data:${b.mime};base64,${body.file.toString("base64")}`)
+        }
+        else form.append("file", body.file)
+        const 
+            res = await this.client.post(`/guilds/${guildID}/stickers`, {
+                body: form,
+                headers: { ...(reason ? { "X-Audit-Log-Reason": reason } : {}),  "Content-Type": "multipart/form-data", ...form.getHeaders() }
+            }),
+            data = await res.json()
+        return new Sticker(data, this.bot)
+    }
+    async editGuildSticker(guildID: string, stickerID: string, body: {
+        name: string,
+        description?: string,
+        tags: string
+    }, reason?: string) {
+        const
+            res = await this.client.patch(`/guilds/${guildID}/stickers/${stickerID}`, {
+                body: JSON.stringify(body),
+                headers: { ...(reason ? { "X-Audit-Log-Reason": reason } : {}) }
+            }),
+            data = await res.json()
+        return new Sticker(data, this.bot)
+    }
+    async deleteGuildSticker(guildID: string, stickerID: string, reason?: string) {
+        await this.client.delete(`/guilds/${guildID}/stickers/${stickerID}`, {
+            headers: { ...(reason ? { "X-Audit-Log-Reason": reason } : {}) }
+        })
     }
     /* Docs Section: Guild */
     async createGuild(body: {
@@ -916,7 +982,7 @@ export default class HTTP {
     async deleteWebhookMessage(webhookID: string, webhookToken: string, messageID: string) {
         await this.client.delete(`/webhooks/${webhookID}/${webhookToken}/messages/${messageID}`)
     }
-    /* Docs Section: Slash Commands TODO */
+    /* Docs Section: Slash Commands */
     async getGlobalSlashCommands(): Promise<ApplicationCommand[]> {
         const 
             res = await this.client.get(`/applications/${this.bot.user.id}/commands`),
@@ -1131,108 +1197,3 @@ export default class HTTP {
         return await res.json()
     }
 }
-/* export class WebhookHTTP {
-    private client: WebhookFetch
-    constructor() {
-        this.client = new WebhookFetch()
-    }
-    async getWebhook(webhookID: string, webhookToken: string) {
-        const
-            res = await this.client.get(`/${webhookID}/${webhookToken}`),
-            data = await res.json()
-        return new WebhookFromToken(data.id, data.token)
-    }
-    async modifyWebhook(webhookID: string, webhookToken: string, body: {
-        name?: string,
-        avatar_url?: Buffer
-    }) {
-        const sendable: any = body
-        if (body.avatar_url) { 
-            const b = await f.fromBuffer(body.avatar_url)
-            sendable.avatar_url = `data:${b.mime};base64,${body.avatar_url.toString("base64")}` 
-        }
-        const
-            res = await this.client.patch(`/${webhookID}/${webhookToken}`, {
-                body: JSON.stringify(sendable)
-            }),
-            data = await res.json()
-        return new WebhookFromToken(data.id, data.token)
-    }
-    async deleteWebhook(webhookID: string, webhookToken: string) {
-        await this.client.delete(`/${webhookID}/${webhookToken}`)
-    }
-    async executeWebhook(webhookID: string, webhookToken: string, body: {
-        content?: string,
-        username?: string,
-        wait?: boolean,
-        avatar_url?: string,
-        tts?: boolean,
-        file?: PetalsFile,
-        embeds?: Embed[],
-        allowed_mentions?: { 
-            parse?: "everyone" | "roles" | "users"[], 
-            users?: string[], 
-            roles?: string[] 
-        }
-    }) {
-        let form: fd
-        const wait = body.wait
-        delete body.wait
-        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
-        if (body.file) {
-            form = new fd()
-            if (body.content) { 
-                form.append("content", body.content)
-                delete body.content
-            }
-            if (body.tts) { 
-                form.append("tts", body.tts) 
-                delete body.tts
-            }
-            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime())})
-            delete body.file
-            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
-        }
-        await this.client.post(`/${webhookID}/${webhookToken}${wait ? "?wait=true" : ""}`, {
-            body: form ?? JSON.stringify(body), 
-            headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
-        })
-    }
-    async editWebhookMessage(webhookID: string, webhookToken: string, messageID: string, body: {
-        content?: string,
-        embeds?: Embed[],
-        file?: PetalsFile,
-        wait?: boolean,
-        allowed_mentions?: { 
-            parse?: "everyone" | "roles" | "users"[], 
-            users?: string[], 
-            roles?: string[] 
-        }
-    }) {
-        let form: fd
-        const wait = body.wait
-        delete body.wait
-        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
-        if (body.file) {
-            form = new fd()
-            if (body.content) { 
-                form.append("content", body.content)
-                delete body.content
-            }
-            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime()) })
-            delete body.file
-            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
-        }
-        const 
-            res = await this.client.patch(`/${webhookID}/${webhookToken}/messages/${messageID}${wait ? "?wait=true" : ""}`, {
-                body: form ?? JSON.stringify(body), 
-                headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
-            }),
-            data = await res.json()
-        return data.id as string
-    }
-    async deleteWebhookMessage(webhookID: string, webhookToken: string, messageID: string) {
-        await this.client.delete(`/${webhookID}/${webhookToken}/messages/${messageID}`)
-    }
-    
-} */
