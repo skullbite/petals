@@ -95,7 +95,7 @@ export default class Webhook extends Base {
     constructor(id: string, token: string) {
         this.id = id
         this.http = new WebhookHTTP()
-        this.createdAt = new Date(Math.floor((Number(BigInt(id)) / 4194304) + 1420070400000))
+        this.createdAt = new Date(Math.floor(Number((BigInt(snowflake) / 4194304n) + 1420070400000n)))
         this.token = token
     }
     async edit(body: {

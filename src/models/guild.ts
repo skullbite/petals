@@ -444,6 +444,6 @@ export class Guild extends PartialGuild {
         return this.members.get(this._bot.user.id)
     }
     get shardID() {
-        return (Number(BigInt(this.id)) >> 22) % this._bot._shardsReady
+        return Number((BigInt(this.id) >> 22n) % BigInt(this._bot.opts.shardCount))
     }
 }
