@@ -14,7 +14,7 @@ export function guildBannerURL(guildID: string, hash: string): string {
 }
 export function avatarURL(userID: string, discriminator?: string, hash?: string, format?: string, size?: number): string {
     let endpoint: string
-    if (!hash) endpoint = `/embed/avatars/${Number(discriminator) % 2}.png${size ? "?size="+String(size) : ""}`
+    if (!hash) endpoint = `/embed/avatars/${Number(discriminator) % 5}.png${size ? "?size="+String(size) : ""}`
     else endpoint = `/avatars/${userID}/${hash}.${format ?? "png"}${size ? "?size="+String(size) : ""}`
     return CDN_URL + endpoint
 }
