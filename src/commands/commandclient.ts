@@ -175,7 +175,7 @@ export default class CommandClient extends RawClient {
         return stringWithMention.replace(new RegExp(`<@!?${this.user.id}>`, "g"), `@${ctx.guild?.me.nick ?? this.user.name}`)
     }
     defaultHelp = new Command({ name: "help" })
-        .setArgs([{ name: "cm", type: "str", useRest: true }])
+        .setArgs([{ name: "cm", type: "str", required: false, useRest: true }])
         .setExec(async function (ctx) {
             let cats: string[]
             const cm = ctx.args.cm as string
