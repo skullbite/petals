@@ -18,7 +18,6 @@ export default (ws: PetalsWS, data) => {
             parsedData.member = new Member(data.d.member, ws.bot)
         }
     }
-    const confirmShard = ws.useShard(parsedData.guild)
-    if (confirmShard) ws.bot.emit(data.t.includes("ADD") ? "msg.react" : "msg.react.remove", parsedData)
+    ws.bot.emit(data.t.includes("ADD") ? "msg.react" : "msg.react.remove", parsedData)
 
 }

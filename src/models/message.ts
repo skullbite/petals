@@ -147,7 +147,7 @@ abstract class BaseMessage extends Base {
         this.attachments = attachments.map(a => new Attachment(a))
         this.embeds = embeds.map(d => new Embed(d))
         if (this.guild) {
-            this.author = data.author instanceof Member ? data.author : this.guild.members.get(author.user.id) ?? new Member(author, this._bot)
+            this.author = data.author instanceof Member ? data.author : this.guild.members.get(author.user.id) ?? author.user.discriminator !== "0000" ? new Member(author, this._bot) : new User(author.user, this._bot)
             this.channel = this.guild.channels.get(channel_id) as c.GuildTextable
             if (!this.channel) this._bot.fetchChannel(channel_id).then(d => this.channel = d as c.GuildTextable)
         }
@@ -215,7 +215,13 @@ abstract class BaseMessage extends Base {
         case 20:
             this.type = "APPLICATION_COMMAND"
             break
-        case 21:
+        case 21: 
+            this.type = "THREAD_STARTER_MESSAGE"
+            break
+        case 22:
+            this.type = "GUILD_INVITE_REMINDER"
+            break
+        case -1:
             this.type = "CONVERTED_INTERACTION"
         }
     }

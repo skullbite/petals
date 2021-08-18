@@ -142,7 +142,7 @@ export class Guild extends PartialGuild {
     large: boolean
     boostLevel: number
     voiceState: MinimalVoiceState
-    stickers: Pile<unknown, unknown>
+    stickers: Pile<string, Sticker>
     constructor(data, bot: RawClient) {
         super(data, bot)
         this._bot.guilds.set(this.id, this) // TODO: Handle members in a way that isn't this.
@@ -196,7 +196,6 @@ export class Guild extends PartialGuild {
             Object.assign(d, { guild_id: this.id })
             this.members.set(d.user.id, new Member(d, bot))
         })
-
         if (presences) this.presences = presences.map(d => new Prensence(d, this._bot))
         this.channels = new Pile
         if (channels) channels.map(d => {

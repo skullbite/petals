@@ -1,4 +1,4 @@
-import PetalsFetch from "./fetch"
+import PetalsFetch, { WebhookFetch } from "./fetch"
 import type RawClient from "../client"
 import * as fd from "form-data"
 import * as m from "mime"
@@ -18,11 +18,11 @@ import VoiceRegion from "../models/voiceregion"
 import Integration from "../models/integration"
 import Widget from "../models/widget"
 import Application from "../models/application"
-import { ApplicationCommand, OptionTypes, SlashTemplate } from "../models/interactions/command"
+import { ApplicationCommand, CommandTypes, OptionTypes, SlashTemplate } from "../models/interactions/command"
 import type PetalsFile from "../utils/file"
 import type Embed from "../models/embed"
 import { API_URL } from "../utils/constants"
-import Webhook from "../models/webhook"
+import Webhook, { WebhookFromToken } from "../models/webhook"
 import { InteractionResponse, ResponseTypes } from "../models/interactions/interaction"
 import CommandPermissions, { SubsetPermissions } from "../models/interactions/permissions"
 import Sticker, { StickerPack } from "../models/sticker"
@@ -33,8 +33,12 @@ export const channelTypes = {
     CATEGORY: 4,
     NEWS: 5,
     STORE: 6,
+    THREAD_NEWS: 10,
+    THREAD_PUBLIC: 11,
+    THREAD_PRIVATE: 12,
     STAGE: 13
 }
+
 interface FollowedChannel {
     channel_id: string
     webhook_id: string
@@ -628,19 +632,14 @@ export default class HTTP {
     }
     async editGuildMember(guildID: string, userID: string, body: { 
         nick?: string, 
-        roles?: Role[], 
+        roles?: string[], 
         mute?: boolean, 
         deaf?: boolean,
         channel_id?: string
     }, reason?: string) {
-        const sendable: any = body
-        if (sendable.roles) sendable.roles = sendable.roles.map((d: Role) =>{
-            if (d.fromID !== guildID) throw new Error(`Role (${d.id}) in provided roles is not assigned to this guild.`)
-            return d.id
-        })
         const 
             res = await this.client.patch(`/guilds/${guildID}/members/${userID}`, {
-                body: JSON.stringify(sendable),
+                body: JSON.stringify(body),
                 headers: reason ? { "X-Audit-Log-Reason": reason } : {}
             }), 
             data = await res.json()
@@ -996,6 +995,7 @@ export default class HTTP {
         return new ApplicationCommand(data, this.bot)
     }
     async createGlobalSlashCommand(body: SlashTemplate) {
+        body.type = CommandTypes[body.type] as any
         if (body.options) body.options = body.options.map(d => {
             d.type = OptionTypes[d.type] as any
             return d
@@ -1008,6 +1008,7 @@ export default class HTTP {
         return new ApplicationCommand(data, this.bot)
     }
     async editGlobalSlashCommand(commandID: string, body: SlashTemplate) {
+        body.type = CommandTypes[body.type] as any
         if (body.options) body.options = body.options.map(d => {
             d.type = OptionTypes[d.type] as any
             return d
@@ -1024,6 +1025,7 @@ export default class HTTP {
     }
     async overwriteGlobalSlashCommands(body: SlashTemplate[]) {
         body = body.map(d => {
+            d.type = CommandTypes[d.type ?? "CHAT_INPUT"] as any
             if (d.options) d.options = d.options.map(e => {
                 e.type = OptionTypes[e.type] as any
                 return e
@@ -1050,6 +1052,7 @@ export default class HTTP {
         return new ApplicationCommand(data, this.bot)
     }
     async createGuildSlashCommand(guildID: string, body: SlashTemplate) {
+        body.type = CommandTypes[body.type] as any
         if (body.options) body.options = body.options.map(d => {
             d.type = OptionTypes[d.type] as any
             return d
@@ -1062,6 +1065,7 @@ export default class HTTP {
         return new ApplicationCommand(data, this.bot)
     }
     async editGuildSlashCommand(guildID: string, commandID: string, body: SlashTemplate) {
+        body.type = CommandTypes[body.type] as any
         if (body.options) body.options = body.options.map(d => {
             d.type = OptionTypes[d.type] as any
             return d
@@ -1078,6 +1082,7 @@ export default class HTTP {
     }
     async overwriteGuildSlashCommands(guildID: string, body: SlashTemplate[]) {
         body = body.map(d => {
+            d.type = CommandTypes[d.type ?? "CHAT_INPUT"] as any
             if (d.options) d.options = d.options.map(e => {
                 e.type = OptionTypes[e.type] as any
                 return e
@@ -1195,5 +1200,111 @@ export default class HTTP {
     async getBotGateway() {
         const res = await this.client.get("/gateway/bot")
         return await res.json()
+    }
+}
+export class WebhookHTTP {
+    private client: WebhookFetch
+    constructor() {
+        this.client = new WebhookFetch()
+    }
+    async getWebhook(webhookID: string, webhookToken: string) {
+        const
+            res = await this.client.get(`/${webhookID}/${webhookToken}`),
+            data = await res.json()
+        return new WebhookFromToken(data.id, data.token)
+    }
+    async modifyWebhook(webhookID: string, webhookToken: string, body: {
+        name?: string,
+        avatar_url?: Buffer
+    }) {
+        const sendable: any = body
+        if (body.avatar_url) { 
+            const b = await f.fromBuffer(body.avatar_url)
+            sendable.avatar_url = `data:${b.mime};base64,${body.avatar_url.toString("base64")}` 
+        }
+        const
+            res = await this.client.patch(`/${webhookID}/${webhookToken}`, {
+                body: JSON.stringify(sendable)
+            }),
+            data = await res.json()
+        return new WebhookFromToken(data.id, data.token)
+    }
+    async deleteWebhook(webhookID: string, webhookToken: string) {
+        await this.client.delete(`/${webhookID}/${webhookToken}`)
+    }
+    async executeWebhook(webhookID: string, webhookToken: string, body: {
+        content?: string,
+        username?: string,
+        wait?: boolean,
+        avatar_url?: string,
+        tts?: boolean,
+        file?: PetalsFile,
+        embeds?: Embed[],
+        allowed_mentions?: { 
+            parse?: "everyone" | "roles" | "users"[], 
+            users?: string[], 
+            roles?: string[] 
+        }
+    }) {
+        let form: fd
+        const wait = body.wait
+        delete body.wait
+        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
+        if (body.file) {
+            form = new fd()
+            if (body.content) { 
+                form.append("content", body.content)
+                delete body.content
+            }
+            if (body.tts) { 
+                form.append("tts", body.tts) 
+                delete body.tts
+            }
+            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime())})
+            delete body.file
+            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
+        }
+        const res = await this.client.post(`/${webhookID}/${webhookToken}${wait ? "?wait=true" : ""}`, {
+                body: form ?? JSON.stringify(body), 
+                headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
+            }),
+            data = await res.text()
+        return data
+    }
+    async editWebhookMessage(webhookID: string, webhookToken: string, messageID: string, body: {
+        content?: string,
+        embeds?: Embed[],
+        file?: PetalsFile,
+        wait?: boolean,
+        allowed_mentions?: { 
+            parse?: "everyone" | "roles" | "users"[], 
+            users?: string[], 
+            roles?: string[] 
+        }
+    }) {
+        let form: fd
+        const wait = body.wait
+        delete body.wait
+        if (body.embeds) body.embeds = body.embeds.map(d => d.toJSON)
+        if (body.file) {
+            form = new fd()
+            if (body.content) { 
+                form.append("content", body.content)
+                delete body.content
+            }
+            form.append("file", body.file.buffer, { filename: body.file.name ?? "file."+m.getExtension(await body.file.mime()) })
+            delete body.file
+            form.append("payload_json", JSON.stringify(body), { contentType: "application/json" })
+        }
+        const 
+            res = await this.client.patch(`/${webhookID}/${webhookToken}/messages/${messageID}${wait ? "?wait=true" : ""}`, {
+                body: form ?? JSON.stringify(body), 
+                headers: { ...(form ? form.getHeaders() : {}), "Content-Type": form ? "multipart/form-data" : "application/json" }
+            }),
+            data = await res.json()
+        return data.id as string
+    }
+    async deleteWebhookMessage(webhookID: string, webhookToken: string, messageID: string) {
+        await this.client.delete(`/${webhookID}/${webhookToken}/messages/${messageID}`)
     }
 }

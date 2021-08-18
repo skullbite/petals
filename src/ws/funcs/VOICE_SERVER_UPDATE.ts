@@ -6,5 +6,5 @@ export default (ws: PetalsWS, data) => {
         endpoint: data.d.endpoint,
         token: data.d.token
     }
-    if (ws.useShard(parsedData.guild)) ws.bot.emit("voice.server.edit", parsedData)
+    ws.bot.emit("voice.server.edit", parsedData)
 }

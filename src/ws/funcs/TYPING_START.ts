@@ -16,5 +16,5 @@ export default (ws: PetalsWS, data) => {
             parsedData.member = new Member(data.d.member, ws.bot)
         }
     }
-    if (ws.useShard(parsedData.guild)) ws.bot.emit("typing", parsedData)
+    ws.bot.emit("typing", parsedData)
 }

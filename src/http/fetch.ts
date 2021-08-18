@@ -1,5 +1,6 @@
 import fetch, { BodyInit, Response } from "node-fetch"
 import type RawClient from "../client"
+import { API_URL } from "../utils/constants"
 type BasicJSON = { [x: string]: string }
 type HTTPMethods = "GET"     |
                    "HEAD"    |
@@ -126,7 +127,7 @@ export default class PetalsFetch {
     }
 }
 
-/* export class WebhookFetch {
+export class WebhookFetch {
     baseURL: string
     constructor() {
         this.baseURL = API_URL+"/webhooks"
@@ -136,27 +137,26 @@ export default class PetalsFetch {
         if (!reqData.headers["Content-Type"]) reqData.headers["Content-Type"] = "application/json"
         const data = {
             method: reqData.method ?? "GET",
+            headers: reqData.headers,
             body: reqData.body
         }
         if (!reqData.body) delete data.body
-        // TODO: not a permanent solution
-        /* if (this.lastRes) {
-            if (this.lastRes.headers["X-RateLimit-Remaining"] === 0) await new Promise(resolve => setTimeout(resolve, this.lastRes.headers["X-RateLimit-Reset"] - Date.now() ))
-        } */ /*
         const req = fetch(this.baseURL+endpoint, data), res = await req
         if (res.ok) return res 
         const content = await res.json()
         if (!content) return res 
         process.once("unhandledRejection", e => { throw e })
         switch (res.status) {
-        case 400: throw new RESTErrors.BadRequest(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
-        case 401: throw new RESTErrors.Denied(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
-        case 403: throw new RESTErrors.Forbidden(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
-        case 404: throw new RESTErrors.NotFound(content.message)
-        case 405: throw new RESTErrors.MethodNotAllowed(`[${reqData.method} ${endpoint}] <Error Code ${content.code}> ${content.message}`)
+        case 400:
+        case 401:
+        case 403:
+        case 405:
+            throw new HTTPError(`Error Code ${content.code}: ${content.message}`, endpoint, res.status)
+        case 404: throw new HTTPError(content.message, endpoint, res.status)
         case 429: 
             await new Promise(resolve => setTimeout(resolve, content.retry_after * 1000))
             await this.request(endpoint, reqData)
+            break
         }
     }
     async get(endpoint: string, reqData?: { body?: BodyInit, headers?: BasicJSON }) {
@@ -213,4 +213,4 @@ export default class PetalsFetch {
             ...reqData
         })
     }
-} */
+}

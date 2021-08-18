@@ -1,7 +1,6 @@
 /* eslint-disable no-fallthrough */
 import * as ws from "ws"
 import type RawClient from "../client"
-import type { Guild } from "../models/guild"
 import { WS_URI } from "../utils/constants"
 import CHANNEL_CREATE from "./funcs/CHANNEL_CREATE"
 import CHANNEL_DELETE from "./funcs/CHANNEL_DELETE"
@@ -114,6 +113,10 @@ export default class PetalsWS extends ws {
             switch (data.op) {
             case 0:
                 this.bot.lastSeq = data.s
+                if (!data.d.guild_id) {
+                    if (this.loginPayload.shards[0] !== 0) return
+                }
+                else if (Number((BigInt(data.d.guild_id) >> 22n) % BigInt(this.bot.opts.shardCount)) !== this.loginPayload.shards[0]) return
                 switch (data.t) {
                 case "READY": READY(this, data)
                     break
@@ -195,9 +198,6 @@ export default class PetalsWS extends ws {
             case 11: break
             }
         })
-    }
-    useShard(guild?: Guild) {
-        return (guild && guild.shardID === this.loginPayload.shards[0]) ?? this.loginPayload.shards[0] === 0
     }
     get latency() {
         let ping = Date.now()

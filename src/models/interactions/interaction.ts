@@ -3,7 +3,7 @@ import { PartialChannel } from "../channel"
 import Embed from "../embed"
 import { Message, MessageOptions } from "../message"
 import Role from "../role"
-import { Member, User } from "../user"
+import { Member, PartialMember, User } from "../user"
 import { Options } from "./command"
 
 type JSONWith<T> = { [x: string]: T }
@@ -27,11 +27,11 @@ export interface InteractionResponse {
         flags?: 64
     }
 }
-class InteractionData extends Base {
+export class InteractionData extends Base {
     name: string
     resolved?: {
         users?: JSONWith<User>,
-        members?: JSONWith<Member>,
+        members?: JSONWith<PartialMember>,
         roles?: JSONWith<Role>,
         channels?: JSONWith<PartialChannel>
     }
@@ -61,7 +61,9 @@ class InteractionData extends Base {
             if (resolved.members) {
                 Object.keys(resolved.members).forEach(d => {
                     const memberData = resolved.members[d]
-                    this.resolved.members[d] = new Member(memberData, this._bot)
+                    memberData.user = resolved.users[Object.keys(resolved.users).filter(u => u === d)[0]]
+                    this.resolved.members[d] = new PartialMember(memberData, this._bot)
+
                 })
             }
             if (resolved.roles) {
@@ -82,7 +84,7 @@ class InteractionData extends Base {
 }
 export default class Interaction extends Base {
     applicationID: string
-    type: 1 | 2
+    type: 2 | 3
     guildID?: string
     channelID?: string
     data?: InteractionData
@@ -116,7 +118,7 @@ export default class Interaction extends Base {
             author: this.member ?? this.user, // ???
             id: this.id,
             channel_id: this.channelID,
-            type: 21,
+            type: -1,
             guild_id: this.guildID,
             attachments: [],
             embeds: [],
@@ -157,10 +159,34 @@ export class ButtonInteraction extends Interaction {
 }
 export class SelectInteraction extends Interaction {
     // @ts-ignore
-    data: { custom_id: string, values: string[], component_type: 3 }
+    declare data?: { custom_id: string, values: string[], component_type: 3 }
     message: Message
     constructor(d, bot) {
         super(d, bot)
         this.message = new Message(d, bot)
+    }
+}
+
+export class UserInteraction extends Interaction {
+    // @ts-ignore
+    declare data?: User | Member
+    constructor(d, bot) {
+        super(d, bot)
+        if (d.data.resolved.members) {
+            const m = d.data.resolved.members[Object.keys(d.data.resolved.members)[0]]
+            m.user = d.data.resolved.users[Object.keys(d.data.resolved.users)[0]]
+            this.data = new PartialMember(m, this._bot)
+        }
+        else {
+            this.data = new User(d.data.resolved.users[Object.keys(d.data.resolved.users)[0]], this._bot)
+        }
+    }
+}
+export class MessageInteraction extends Interaction {
+    // @ts-ignore
+    declare data?: Message
+    constructor(d, bot) {
+        super(d, bot)
+        this.data = new Message(d.data.resolved.messages[Object.keys(d.data.resolved.messages)[0]], bot)
     }
 }

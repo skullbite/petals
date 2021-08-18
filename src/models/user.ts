@@ -129,7 +129,7 @@ export class Member extends User {
     }
     async edit(opts: { 
         nick?: string, 
-        roles?: Role[], 
+        roles?: string[], 
         mute?: boolean, 
         deaf?: boolean,
         channel_id?: string
@@ -151,6 +151,16 @@ export class Member extends User {
 
 }
 
+export class PartialMember extends User {
+    mute: boolean
+    deaf: boolean
+    constructor(data, bot) {
+        super(data.user, bot)
+        const { mute, deaf } = data
+        this.mute = mute
+        this.deaf = deaf
+    }
+}
 export class WidgetUser extends Base {
     name: string
     discriminator: string

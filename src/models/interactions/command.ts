@@ -1,4 +1,10 @@
 import Base from "../base"
+export const CommandTypes = {
+    CHAT_INPUT: 1,
+    USER: 2,
+    MESSAGE: 3
+}
+
 export const OptionTypes = {
     SUB_COMMAND: 1,
     SUB_COMMAND_GROUP: 2,
@@ -10,9 +16,10 @@ export const OptionTypes = {
     ROLE: 8
 }
 export interface SlashTemplate { 
-    name: string, 
-    description: string, 
-    options?: Options[], 
+    name: string
+    type: keyof typeof CommandTypes
+    description?: string
+    options?: Options[]
     default_permission?: boolean
 }
 export interface Options {

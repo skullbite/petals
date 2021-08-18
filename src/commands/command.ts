@@ -9,10 +9,19 @@ import CommandClient from "./commandclient"
 export type argumentTypes = string | number | boolean | Member | User | GuildChannels | Role
 export type argument = {
     name: string
-    type: "str" | "num" | "bool" |"member" | "user" | "channel" | "role"
+    type: "str" | "num" | "bool" | "member" | "user" | "channel" | "role"
     description?: string
     required?: boolean
     useRest?: boolean
+}
+export type conversion = {
+    str: string,
+    num: number,
+    bool: boolean,
+    member: Member,
+    user: User,
+    channel: GuildChannels,
+    role: Role
 }
 export function slashSafeArgument(d: argument["type"]) {
     switch (d) {
@@ -78,7 +87,11 @@ export class Command<T = CommandClient> {
         return this 
     }
     setArgs(args: argument[]): this {
-        this.args = args
+        const argss = args.map(d => {
+            if (d.required === undefined) d.required = true
+            return d
+        })
+        this.args = argss
         return this
     }
     setChecks(checks: checkExec<T>[]): this {
@@ -97,6 +110,7 @@ export class Command<T = CommandClient> {
         if (!this.name.match(/^[\w-]{1,32}$/)[0]) throw new Error("Command name doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.")
         return {
             name: this.name,
+            type: "CHAT_INPUT",
             description: this.description ?? "No Description Provided.",
             options: (this.args ? this.args.map<Options>(a => { 
                 if (!a.name.match(/^[\w-]{1,32}$/)[0]) throw new Error(`Argument name "${a.name}" doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.`)
@@ -104,7 +118,7 @@ export class Command<T = CommandClient> {
                     name: a.name, 
                     type: slashSafeArgument(a.type), 
                     description: a.description ?? "No Description Provided.", 
-                    required: a.required ?? false 
+                    required: a.required === false ? false : true 
                 } 
             }) : [])
         }
@@ -139,8 +153,9 @@ export class Group<T = CommandClient> extends Command {
         if (!this.name.match(/^[\w-]{1,32}$/)[0]) throw new Error("Command name doesn't match discord query (^[\\w-]{1,32}$). Cannot Convert.")
         const 
             subs = Array.from(this.subcommands.values()),
-            output: SlashTemplate = {
+            output = {
                 name: this.name,
+                type: "CHAT_INPUT",
                 description: this.description ?? "No Description Provided."
             },
             subOpts = subs.map(d => { 
@@ -155,11 +170,11 @@ export class Group<T = CommandClient> extends Command {
                             name: a.name, 
                             type: slashSafeArgument(a.type), 
                             description: a.description ?? "No Description Provided.", 
-                            required: a.required ?? false 
+                            required: a.required === false ? false : true 
                         } }) : [])
                 } })
-        output.options = subOpts as any
-        return output
+        output["options"] = subOpts
+        return output as any
     }
 }
 

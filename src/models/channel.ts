@@ -6,17 +6,27 @@ import PermissionOverwrite from "./permissionoverwrite"
 import { channelTypes } from "../http/requests"
 import { User } from "./user"
 
-abstract class GuildChannel extends Base {
+export class PartialChannel extends Base {
     name: string
+    type: string
+    constructor(data, bot: RawClient) {
+        super(data.id, bot)
+        const { name, type } = data
+        this.name = name
+        const obj = {}
+        Array.from(Object.keys(channelTypes).entries()).forEach(d => obj[d[0]] = d[1])
+        this.type = obj[type]
+    }
+}
+abstract class GuildChannel extends PartialChannel {
     fromID: string
     position: number
     overwrites: Pile<string, PermissionOverwrite>
     constructor(data, bot) {
-        super(data.id, bot)
-        const { permission_overwrites, name, position, guild_id } = data
+        super(data, bot)
+        const { permission_overwrites, position, guild_id } = data
         this.overwrites = new Pile
         permission_overwrites.map((d) => this.overwrites.set(d.id, new PermissionOverwrite(d)))
-        this.name = name
         this.position = position
         this.fromID = guild_id
     }
@@ -51,17 +61,6 @@ abstract class GuildChannel extends Base {
     }
 }
 export class ChannelCategory extends GuildChannel {}
-
-export class PartialChannel extends Base {
-    name: string
-    type: number
-    constructor(data, bot: RawClient) {
-        super(data.id, bot)
-        const { name, type } = data
-        this.name = name
-        this.type = type    
-    }
-}
 
 export class TextChannel extends GuildChannel {
     topic?: string
@@ -258,8 +257,37 @@ export class StageChannel extends GuildChannel {
         return this._bot.http.getChannelInvites(this.id)
     }
 }
+
+export class ThreadChannel extends GuildChannel {
+    parentID: string
+    ownerID: string
+    messageCount: number
+    memberCount: number
+    lastMessageID: string
+    ratelimitPerUser?: number
+    meta: {
+        archived: boolean
+        locked: boolean
+        auto_archive_duration: number
+        archive_timestamp: Date
+    }
+    constructor(data, bot) {
+        super(data, bot)
+        const { parent_id, owner_id, message_count, member_count, rate_limit_per_user, thread_metadata } = data
+        this.parentID = parent_id
+        this.ownerID = owner_id
+        this.messageCount = message_count
+        this.memberCount = member_count
+        this.ratelimitPerUser = rate_limit_per_user
+        this.meta = thread_metadata
+        this.meta.archive_timestamp = new Date(this.meta.archive_timestamp)
+    }
+    get parent() {
+        return this.from.channels.get(this.parentID)
+    }
+} 
  
-export type GuildTextable = TextChannel|NewsChannel
-export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|StageChannel
-export type AnyTextable = TextChannel|NewsChannel|DMChannel
-export type AllChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|DMChannel|StageChannel
+export type GuildTextable = TextChannel|NewsChannel|ThreadChannel
+export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|StageChannel|ThreadChannel
+export type AnyTextable = TextChannel|NewsChannel|DMChannel|ThreadChannel
+export type AllChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|DMChannel|StageChannel|ThreadChannel

@@ -65,11 +65,7 @@ export default class CommandClient extends RawClient {
             if (!this.listenerCount("slash") && this.commandOptions.listenForSlash) this.on("slash", async (i) => await this.processCommands(i))
             if (this.commandOptions.syncWithSlash) {
                 if (this.commands.size > 100) throw new Error("To sync slash commands with yours, you can only have up to 100 commands registered.")
-                const cmds = []
-                Array.from(this.commands.values()).map(d => {
-                    cmds.push(d.convertToSlash())
-                })
-                this.massSetGlobalCommands(cmds)
+                this.massSetGlobalCommands(Array.from(this.commands.values()).map(d => d.convertToSlash()))
             }
             typeof this.commandOptions.prefix === "function" &&
                 (this.commandOptions.prefix.length === 0 || this.commandOptions.prefix.length === 1)

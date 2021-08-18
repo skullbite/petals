@@ -19,8 +19,8 @@ const overwritePermissions = {
     USE_VAD: 0x02000000
 }
 const permissionTypes = {
-    "role": 0,
-    "member": 1
+    role: 0,
+    member: 1
 }
 type permissionKeys = keyof typeof overwritePermissions
 export default class PermissionOverwrite {

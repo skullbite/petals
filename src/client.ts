@@ -14,7 +14,7 @@ import VoiceState from "./models/voicestate"
 import PetalsWS from "./ws"
 import Shard from "./models/shard"
 import PetalsPermissions from "./models/permissions"
-import Interaction, { ButtonInteraction, SelectInteraction } from "./models/interactions/interaction"
+import Interaction, { ButtonInteraction, MessageInteraction, SelectInteraction, UserInteraction } from "./models/interactions/interaction"
 import { SlashTemplate } from "./models/interactions/command"
 import { HTTPError } from "./http/fetch"
 interface EventData {
@@ -22,7 +22,7 @@ interface EventData {
     reactionRemove: { message: Message, userID: string, emoji: string|Emoji, channelID: string }
     reactionRemoveAll: { channel: c.AnyTextable, guild?: Guild, message: Message }
     reactionRemoveEmoji: { channel: c.AnyTextable, guild?: Guild, message: Message, emoji: string|Emoji }
-    typing: { message: Message, userID: string, timestamp: Date, channel: c.AnyTextable, guild?: Guild, member?: Member }
+    typing: { userID: string, timestamp: Date, channel: c.AnyTextable, guild?: Guild, member?: Member }
     voiceServer: { guild?: Guild, token: string, endpoint: string }
 }
 export type statusTypes = "online"|"idle"|"dnd"|"offline"
@@ -53,6 +53,8 @@ export interface ClientEvents<T> {
     (event: "slash", listener: (interation: Interaction) => void): T
     (event: "click", listener: (interaction: ButtonInteraction) => void): T
     (event: "select", listener: (interaction: SelectInteraction) => void): T
+    (event: "msg.cmd", listener: (interaction: MessageInteraction) => void): T
+    (event: "user.cmd", listener: (interaction: UserInteraction) => void): T
 }
 
 const activityTypes = {
@@ -235,6 +237,7 @@ export default class RawClient extends EventEmitter {
             }
         }
         else totalShards = this.opts.shardCount
+        this.opts.shardCount = totalShards
         if (totalShards <= 0) throw new Error("Invalid shard count provided!")
         if (this.opts.shards) for (let i = 0; i < this.opts.shards.length; i++) {
             if (this.opts.shards[i] >= totalShards) throw new Error("Invalid shards provided!")

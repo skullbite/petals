@@ -4,7 +4,7 @@ import PetalsFile from "../utils/file"
 import Base from "./base"
 import Embed from "./embed"
 import { User } from "./user"
-// import { WebhookHTTP } from "../http/requests"
+import { WebhookHTTP } from "../http/requests"
 
 const WHtypes = {
     1: "INCOMING",
@@ -85,17 +85,16 @@ export default class Webhook extends Base {
         return this._bot.http.deleteWebhookMessage(this.id, this.token, messageID)
     }
 }
-/* export class WebhookFromToken {
+
+export class WebhookFromToken {
     id: string
     createdAt: Date
     token: string
-    avatar?: string
-    applicationID?: string
     http: WebhookHTTP
     constructor(id: string, token: string) {
         this.id = id
         this.http = new WebhookHTTP()
-        this.createdAt = new Date(Math.floor(Number((BigInt(snowflake) / 4194304n) + 1420070400000n)))
+        this.createdAt = new Date(Math.floor(Number((BigInt(id) / 4194304n) + 1420070400000n)))
         this.token = token
     }
     async edit(body: {
@@ -123,7 +122,7 @@ export default class Webhook extends Base {
         }
     } | string) {
         const data = typeof opts === "string" ? { content: opts } : opts
-        return this.http.executeWebhook(this.id, this.token, data)
+        await this.http.executeWebhook(this.id, this.token, data)
     }
     async editMessage(messageID: string, body: {
         content?: string,
@@ -139,6 +138,6 @@ export default class Webhook extends Base {
         return this.http.editWebhookMessage(this.id, this.token, messageID, body)
     }
     async deleteMessage(messageID: string) {
-        return this.http.deleteWebhookMessage(this.id, this.token, messageID)
+        await this.http.deleteWebhookMessage(this.id, this.token, messageID)
     }
-} */
+}
