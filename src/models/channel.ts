@@ -287,7 +287,7 @@ export class ThreadChannel extends GuildChannel {
     }
 } 
  
-export type GuildTextable = TextChannel|NewsChannel|ThreadChannel
+export type GuildTextable = TextChannel|NewsChannel
 export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|StageChannel|ThreadChannel
-export type AnyTextable = TextChannel|NewsChannel|DMChannel|ThreadChannel
+export type AnyTextable = TextChannel|NewsChannel|DMChannel
 export type AllChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|DMChannel|StageChannel|ThreadChannel
