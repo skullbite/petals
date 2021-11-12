@@ -6,6 +6,7 @@ import Pile from "../utils/pile"
 import FlagHandler from "../utils/flagcalc"
 import { MessageOptions } from "./message"
 import { MinimalVoiceState } from "./voicestate"
+import { Guild } from "./guild"
 
 const userFlags = {
     DISCORD_EMPLOYEE: 1 << 0,
@@ -92,7 +93,7 @@ export class Member extends User {
     roles: Pile<string, Role>
     permissions: PetalsPermissions
     voiceState: MinimalVoiceState
-    constructor(data, bot) {
+    constructor(data, bot, guild?: Guild) {
         super(data.user, bot)
         const { premium_since, nick, mute, deaf, joined_at, is_pending, guild_id, roles, hoisted_role } = data
         this.rawData = data
@@ -105,7 +106,8 @@ export class Member extends User {
         this.hoistedID = hoisted_role
         this.fromID = guild_id
         this.roles = new Pile
-        roles.map(d => this.roles.set(d, this.from.roles.get(d)))
+        const g = this.from ?? guild
+        roles.map(d => this.roles.set(d, g.roles.get(d)))
         let n = 0n
         Array.from(this.roles.values()).map(d => n |= d.permissions.bitset)
         this.permissions = new PetalsPermissions(n)
@@ -149,6 +151,20 @@ export class Member extends User {
         return this._bot.http.createGuildBan(this.fromID, { userID: this.id, body: opts })
     }
 
+}
+
+export class ThreadMember {
+    threadID?: string
+    userID?: string
+    joinedAt: Date
+    flags: number
+    constructor(data) {
+        const { id, user_id, join_timestamp, flags } = data
+        this.threadID = id
+        this.userID = user_id
+        this.joinedAt = new Date(join_timestamp)
+        this.flags = flags
+    }
 }
 
 export class PartialMember extends User {

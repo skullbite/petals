@@ -7,7 +7,7 @@ import Role from "../models/role"
 import { Options, SlashTemplate } from "../models/interactions/command"
 import CommandClient from "./commandclient"
 export type argumentTypes = string | number | boolean | Member | User | GuildChannels | Role
-export type argument = {
+export interface Argument {
     name: string
     type: "str" | "num" | "bool" | "member" | "user" | "channel" | "role"
     description?: string
@@ -23,7 +23,7 @@ export type conversion = {
     channel: GuildChannels,
     role: Role
 }
-export function slashSafeArgument(d: argument["type"]) {
+export function slashSafeArgument(d: Argument["type"]) {
     switch (d) {
     case "str": return "STRING"
     case "num": return "INTEGER"
@@ -58,7 +58,7 @@ export class Command<T = CommandClient> {
     guildOnly?: boolean
     nsfw?: boolean
     checks?: checkExec<T>[]
-    args?: argument[]
+    args?: Argument[]
     path?: string
     category?: string
     parent?: string
@@ -86,7 +86,7 @@ export class Command<T = CommandClient> {
         this.exec = exec  
         return this 
     }
-    setArgs(args: argument[]): this {
+    setArgs(args: Argument[]): this {
         const argss = args.map(d => {
             if (d.required === undefined) d.required = true
             return d

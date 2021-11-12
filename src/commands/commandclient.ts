@@ -4,7 +4,7 @@ import { Message } from "../models/message"
 import { guildPermissions } from "../models/permissions"
 import { Member } from "../models/user"
 import Category from "./category"
-import { argument, argumentTypes, checkExec, cmd, Command, Group } from "./command"
+import { Argument, argumentTypes, checkExec, cmd, Command, Group } from "./command"
 import CommandContext from "./context"
 import * as Converters from "./converter"
 import * as Errors from "./errors"
@@ -91,7 +91,7 @@ export default class CommandClient extends RawClient {
             parentStr: string = parentCmd ? parentCmd.aliases.length ? `[${parentCmd.name}|${parentCmd.aliases.join("|")} ` : parentCmd.name + " " :  "",
             usage = cmd.aliases.length ? ctx.prefix + `${parentStr}[${cmd.name}|${cmd.aliases.join("|")}]` : ctx.prefix + parentStr + cmd.name
         if (!cmd.args) return usage
-        cmd.args.map((a: argument) => {
+        cmd.args.map((a: Argument) => {
             a.required ? argList.push(`<${a.name}>`) : argList.push(`[${a.name}]`)
         })
         return usage + " " + argList.join(" ")
@@ -393,10 +393,43 @@ export default class CommandClient extends RawClient {
         // if (args.length > cmd.args.length && !cmd.args[cmd.args.length - 1].useRest) throw new Errors.InvalidArguments("INVALID_ARGS")
         for (let i = 0; i < cmd.args.length; i++) {
             let argg: argumentTypes
-            const 
-                argument = cmd.args[i],
-                toUse = argument.useRest ? args.slice(i).join(" ") : args[i]
+            const argument = cmd.args[i]
+            let toUse = argument.useRest ? args.slice(i).join(" ") : args[i]
             if (!toUse && argument.required) throw new Errors.InvalidArguments("INVALID_ARGS")
+            /*if (argument.type === "str" && (toUse.startsWith('"') || toUse.startsWith("'"))) {
+                if (toUse.startsWith('"')) {
+                    const b = []
+                    for (let ind = 0; ind < args.length; ind++) {
+                        // console.log(args)
+                        // if (ind >= i) continue
+                        
+                        b.push(args[i+ind])
+                        args.splice(args.indexOf(args[ind+i]), 1)
+                        console.log(args[ind])
+                        if (args[ind+i].endsWith('"')) {
+                            i = ind
+                            break 
+                        }
+                        if (args.length-1 === ind) throw new Errors.InvalidArguments("INVALID_ARGS")
+                    }
+                    toUse = b.join(" ").replace(/"/g, "")
+                }
+                else {
+                    const b = []
+                    for (let ind = 0; ind < args.length; ind++) {
+                        console.log(args)
+                        if (ind >= i) continue
+                        b.push(args[ind])
+                        delete args[ind]
+                        if (args[i].endsWith("'"))  {
+                            i = ind
+                            break 
+                        }
+                        if (args.length-1 === ind) throw new Errors.InvalidArguments("INVALID_ARGS")
+                    }
+                    toUse = b.join(" ").replace(/'/g, "")
+                }
+            }*/
             switch (argument.type) {
             case "str":
                 argg = String(toUse)
@@ -423,6 +456,7 @@ export default class CommandClient extends RawClient {
                 break
             }
             
+            // console.log(argument.name, argg)
             if (argument.required && (Number.isNaN(argg) || argg === "" || ((argument.type === "member" || argument.type === "user") && !argg))) throw new Errors.InvalidArguments("INVALID_ARGS")
             properArgs[argument.name] = argg
             if (argument.useRest) break

@@ -116,7 +116,15 @@ export class PartialGuild extends Base {
     }
 }
 
-export class Guild extends PartialGuild {
+export class Guild extends Base {
+    name: string
+    splash?: string
+    banner?: string
+    description?: string
+    icon?: string
+    features?: string[]
+    verificationLevel: number
+    vanityURLCode?: string
     region: string
     roles: Pile<string, Role>
     emojis: Pile<string, Emoji>
@@ -125,6 +133,7 @@ export class Guild extends PartialGuild {
     discoverySplash?: string
     updatesChannel?: c.GuildTextable
     systemChannel?: c.GuildTextable
+    threads?: c.ThreadChannel[]
     systemChannelFlags?: string[]
     rulesChannel?: c.GuildTextable
     afkChannel?: c.VoiceChannel
@@ -144,12 +153,15 @@ export class Guild extends PartialGuild {
     voiceState: MinimalVoiceState
     stickers: Pile<string, Sticker>
     constructor(data, bot: RawClient) {
-        super(data, bot)
-        this._bot.guilds.set(this.id, this) // TODO: Handle members in a way that isn't this.
-        const { 
+        super(data.id, bot)
+        const {
+            name,
             description, 
+            icon,
+            verificationLevel,
+            vanityURLCode,
             region, 
-            roles, 
+            roles,
             joined_at, 
             discovery_splash,
             public_updates_channel_id,
@@ -175,15 +187,22 @@ export class Guild extends PartialGuild {
             explicit_content_filter,
             premium_tier,
             emojis,
-            stickers
+            stickers,
+            threads
         } = data
+        this.name = name
+        this.icon = icon
+        this.verificationLevel = verificationLevel
+        this.vanityURLCode = vanityURLCode
         this.description = description
         this.region = region
+        this.threads = threads ? threads.map(d => new c.ThreadChannel(d, this._bot)) : undefined
         this.roles = new Pile 
         roles.map(d => {
             Object.assign(d, { guild_id: this.id })
             this.roles.set(d.id, new Role(d, this._bot)) 
         })
+        this._bot.guilds.set(this.id, this) // TODO: Handle members in a way that isn't this.
         this.emojis = new Pile
         emojis.map(d => {
             Object.assign(d, { guild_id: this.id })
@@ -242,6 +261,9 @@ export class Guild extends PartialGuild {
         this.unavailible = unavailible
         this.boostLevel = premium_tier
         this.large = large
+    }
+    get iconURL() {
+        return this.icon ? cdn.guildIconURL(this.id, this.icon) : undefined
     }
     get channelsInOrder() {
         return Array.from(this.channels.values()).sort((a, b) => b.position - a.position)

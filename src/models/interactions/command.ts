@@ -17,7 +17,7 @@ export const OptionTypes = {
 }
 export interface SlashTemplate { 
     name: string
-    type: keyof typeof CommandTypes
+    type?: keyof typeof CommandTypes
     description?: string
     options?: Options[]
     default_permission?: boolean

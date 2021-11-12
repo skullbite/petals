@@ -1,0 +1,1 @@
+export const jsonToParams = (options: { [x:string]: any }) => options ? "?" + Object.keys(options).map(v => `${v}=${options[v] instanceof Date ? options[v].toISOString() : options[v]}`).join("&") : "" 

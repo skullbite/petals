@@ -30,13 +30,6 @@ export default (ws: PetalsWS, data) => {
         if (ws.bot.opts.caching.channels) ws.bot.channels.set(data.d.id, channel)
         guild.channels.set(data.d.id, channel)
         break
-    case 10:
-    case 11:
-    case 12:
-        channel = new c.ThreadChannel(data.d, ws.bot)
-        if (ws.bot.opts.caching.channels) ws.bot.channels.set(data.d.id, channel)
-        guild.channels.set(data.d.id, channel)
-        break
     case 13:
         channel = new c.StageChannel(data.d, ws.bot)
         if (ws.bot.opts.caching.channels) ws.bot.channels.set(data.d.id, channel)

@@ -6,6 +6,11 @@ import PermissionOverwrite from "./permissionoverwrite"
 import { channelTypes } from "../http/requests"
 import { User } from "./user"
 
+const threadTypes = {
+    news: 10,
+    public: 11,
+    private: 12,
+}
 export class PartialChannel extends Base {
     name: string
     type: string
@@ -115,7 +120,7 @@ export class TextChannel extends GuildChannel {
     async typing() {
         await this._bot.http.sendTyping(this.id)
     }
-    async bulkDelete({ messageIDs, limit, query }: { messageIDs?: string[], limit?: number, query?: { before?: string, around?: string, after?: string } }) {
+    async bulkDelete({ messageIDs, limit, query }: { messageIDs?: string[], limit?: number, query?: { before?: Date, around?: Date, after?: Date } }) {
         if (messageIDs) {
             await this._bot.http.bulkDeleteMessages(this.id, messageIDs)
             return
@@ -125,6 +130,26 @@ export class TextChannel extends GuildChannel {
             await this._bot.http.bulkDeleteMessages(this.id, m.map(d => d.id))
         }
         else throw new Error("Must provide message IDs or a limit and a query.")
+    }
+    async makeThread(body: { name: string, auto_archive_duration?: 60|1440|4320|10080, type: keyof typeof threadTypes, invitable?: boolean }, reason?: string) {
+        const sendable: any = body
+        sendable.type = threadTypes[body.type]
+        return this._bot.http.startThread(this.id, sendable, reason)
+    }
+    async listActiveThreads() {
+        return this._bot.http.listActiveThreads(this.id)
+    }
+    async listPublicArchivedThreads(options?: {
+        before?: Date
+        limit?: number
+    }) {
+        return this._bot.http.listPublicArchivedThreads(this.id, options)
+    }
+    async listPrivateArchivedThreads(options?: {
+        before?: Date
+        limit?: number
+    }) {
+        return this._bot.http.listPrivateArchivedThreads(this.id, options)
     }
     async send(opts: MessageOptions | string) {
         const data = typeof opts === "string" ? { content: opts } : opts
@@ -258,7 +283,8 @@ export class StageChannel extends GuildChannel {
     }
 }
 
-export class ThreadChannel extends GuildChannel {
+export class ThreadChannel extends Base {
+    fromID: string
     parentID: string
     ownerID: string
     messageCount: number
@@ -272,8 +298,9 @@ export class ThreadChannel extends GuildChannel {
         archive_timestamp: Date
     }
     constructor(data, bot) {
-        super(data, bot)
-        const { parent_id, owner_id, message_count, member_count, rate_limit_per_user, thread_metadata } = data
+        super(data.id, bot)
+        const { parent_id, guild_id, owner_id, message_count, member_count, rate_limit_per_user, thread_metadata } = data
+        this.fromID = guild_id
         this.parentID = parent_id
         this.ownerID = owner_id
         this.messageCount = message_count
@@ -282,12 +309,37 @@ export class ThreadChannel extends GuildChannel {
         this.meta = thread_metadata
         this.meta.archive_timestamp = new Date(this.meta.archive_timestamp)
     }
+    async join() {
+        await this._bot.http.joinThread(this.id)
+    }
+    async addMember(userID: string) {
+        await this._bot.http.addThreadMember(this.id, userID)
+    }
+    async leave() {
+        await this._bot.http.leaveThread(this.id)
+    }
+    async removeMember(userID: string) {
+        await this._bot.http.removeThreadMember(this.id, userID)
+    }
+    async getMember(userID: string) {
+        return this._bot.http.getThreadMember(this.id, userID)
+    }
+    async listMembers() {
+        return this._bot.http.listThreadMembers(this.id)
+    }
+    async send(opts: MessageOptions | string) {
+        const data = typeof opts === "string" ? { content: opts } : opts
+        return this._bot.http.sendMessage(this.id, data, this._bot)
+    }
+    get from() {
+        return this._bot.guilds.get(this.fromID)
+    }
     get parent() {
         return this.from.channels.get(this.parentID)
     }
 } 
  
 export type GuildTextable = TextChannel|NewsChannel
-export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|StageChannel|ThreadChannel
+export type GuildChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|StageChannel
 export type AnyTextable = TextChannel|NewsChannel|DMChannel
 export type AllChannels = TextChannel|NewsChannel|VoiceChannel|ChannelCategory|StoreChannel|DMChannel|StageChannel|ThreadChannel

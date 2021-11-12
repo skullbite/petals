@@ -8,7 +8,7 @@ import PermissionOverwrites from "../models/permissionoverwrite"
 import Invite from "../models/invite"
 import Emoji from "../models/emoji"
 import * as channels from "../models/channel"
-import { ClientUser, Member, User } from "../models/user"
+import { ClientUser, Member, ThreadMember, User } from "../models/user"
 import AuditLogEntry from "../models/auditlogentry"
 import { Guild, PartialGuild } from "../models/guild"
 import Role from "../models/role"
@@ -26,6 +26,8 @@ import Webhook, { WebhookFromToken } from "../models/webhook"
 import { InteractionResponse, ResponseTypes } from "../models/interactions/interaction"
 import CommandPermissions, { SubsetPermissions } from "../models/interactions/permissions"
 import Sticker, { StickerPack } from "../models/sticker"
+import { jsonToParams } from "./utils"
+import { version } from "../../package.json"
 
 export const channelTypes = {
     TEXT: 0,
@@ -53,12 +55,18 @@ interface VanityData {
     uses: number
 }
 
+export interface ThreadList {
+    threads: channels.ThreadChannel[]
+    members: ThreadMember[]
+    hasMore: boolean
+}
+
 export default class HTTP {
     private bot: RawClient
     private client: PetalsFetch
     constructor(bot: RawClient) {
         const headers = {
-            "User-Agent": "DiscordBot (https://discord.gg/Kzm9C3NYvq, v1)",
+            "User-Agent": `DiscordBot (https://github.com/Skullbite/petals/, v${version})`,
             "Authorization": `Bot ${bot.token}`
         }
         this.client = new PetalsFetch(API_URL, headers, bot)
@@ -71,8 +79,8 @@ export default class HTTP {
         before?: string,
         limit?: number
     }) {
-        const params = options ? "?" + Object.keys(options).map((v) => `${v}=${options[v]}`).join("&") : ""
         const 
+            params = jsonToParams(options),
             res = await this.client.get(`/guilds/${guildID}/audit-logs${params}`), 
             data = await res.json()
         return { 
@@ -102,6 +110,7 @@ export default class HTTP {
         case 4: return new channels.ChannelCategory(data, this.bot)
         case 5: return new channels.NewsChannel(data, this.bot)
         case 6: return new channels.StoreChannel(data, this.bot)
+        case 11: return new channels.ThreadChannel(data, this.bot)
         case 13: return new channels.StageChannel(data, this.bot)
         default: throw new TypeError("The return is a channel type that has yet to be documented. Please alert the developer.")
         }
@@ -191,6 +200,95 @@ export default class HTTP {
         await this.client.delete(`/channels/${channelID}/pins/${messageID}`)
     }
     /* Docs Section: Channels
+       Description: Threads
+    */
+   async startThreadWithMessage(channelID: string, messageID: string, body: {
+       name: string,
+       auto_archive_duration?: 60|1440|4320|10080
+    }, reason?: string) {
+       const 
+           res = await this.client.post(`/channels/${channelID}/messages/${messageID}/threads`, {
+               body: JSON.stringify(body),
+               headers: reason ? { "X-Audit-Log-Reason": reason } : {}
+           }),
+           data = await res.json()
+        return new channels.ThreadChannel(data, this.bot)
+   }
+   async startThread(channelID: string, body: {
+       name: string,
+       auto_archive_duration?: 60|1440|4320|10080,
+       type: 10|11|12,
+       invitable?: boolean
+    }, reason?: string) {
+        const 
+            res = await this.client.post(`/channels/${channelID}/threads`, {
+               body: JSON.stringify(body),
+               headers: reason ? { "X-Audit-Log-Reason": reason } : {}
+            }),
+            data = await res.json()
+        return new channels.ThreadChannel(data, this.bot)
+   }
+   async joinThread(channelID: string) {
+       await this.client.put(`/channels/${channelID}/thread-members/@me`)
+   }
+   async addThreadMember(channelID: string, userID: string) {
+       await this.client.put(`/channels/${channelID}/thread-members/${userID}`)
+   }
+   async leaveThread(channelID: string) {
+       await this.client.delete(`/channels/${channelID}/thread-members/@me`)
+   }
+   async removeThreadMember(channelID: string, userID: string) {
+       await this.client.delete(`/channels/${channelID}/thread-members/${userID}`)
+   }
+   async getThreadMember(channelID: string, userID: string) {
+        const 
+            res = await this.client.get(`/channels/${channelID}/thread-members/${userID}`),
+            data = await res.json()
+        return new ThreadMember(data)
+    }
+    async listThreadMembers(channelID: string) {
+        const 
+            res = await this.client.get(`/channels/${channelID}/thread-members`),
+            data = await res.json()
+        return data.map(d => new ThreadMember(d))
+    }
+    async listActiveThreads(channelID: string): Promise<ThreadList> {
+        const
+            res = await this.client.get(`/channels/${channelID}/threads/active`),
+            data = await res.json()
+        return {
+            threads: data.threads.map(d => new channels.ThreadChannel(d, this.bot)),
+            members: data.members.map(d => new ThreadMember(d)),
+            hasMore: data.has_more
+        }
+    }
+    async listPublicArchivedThreads(channelID: string, options?: { before?: Date, limit?: number }): Promise<ThreadList> {
+        const sendable: any = options
+        if (sendable) sendable.options.before = sendable.options.before.toISOString()
+        const
+            params = jsonToParams(options),
+            res = await this.client.get(`/channels/${channelID}/threads/public/archived${params}`),
+            data = await res.json()
+        return {
+            threads: data.threads.map(d => new channels.ThreadChannel(d, this.bot)),
+            members: data.members.map(d => new ThreadMember(d)),
+            hasMore: data.has_more
+        }
+    }
+    async listPrivateArchivedThreads(channelID: string, options?: { before?: Date, limit?: number }): Promise<ThreadList> {
+        const sendable: any = options
+        if (sendable) sendable.options.before = sendable.options.before.toISOString()
+        const
+            params = jsonToParams(options),
+            res = await this.client.get(`/channels/${channelID}/threads/private/archived${params}`),
+            data = await res.json()
+        return {
+            threads: data.threads.map(d => new channels.ThreadChannel(d, this.bot)),
+            members: data.members.map(d => new ThreadMember(d)),
+            hasMore: data.has_more
+        }
+    }
+    /* Docs Section: Channels
        Description: Messages
     */
     async getMessage(channelID: string, messageID: string) {
@@ -199,11 +297,11 @@ export default class HTTP {
             data = await res.json()
         return new Message(data, this.bot)
     }
-    async getMessages(channelID: string, query: { before?: string, around?: string, after?: string }, limit: number = 50): Promise<Message[]> {
-        if (Object.keys(query).length > 1) throw new Error("Message fetching can only have one type of query.")
+    async getMessages(channelID: string, query: { before?: Date, around?: Date, after?: Date }, limit: number = 50): Promise<Message[]> {
+        if (Object.keys(query).length > 1) throw new Error("Message fetching can only have one type of query per search.")
         const 
             first = query[Object.keys(query)[0]],
-            res = await this.client.get(`/channels/${channelID}/messages?limit=${limit}&${Object.keys(query)[0]}=${first}`), 
+            res = await this.client.get(`/channels/${channelID}/messages?limit=${limit}&${Object.keys(query)[0]}=${first.toISOString()}`), 
             data = await res.json()
         return data.map(d => new Message(d, this.bot))
     }
@@ -333,9 +431,14 @@ export default class HTTP {
         safeEmoji = encodeURIComponent(safeEmoji)
         await this.client.delete(`/channels/${channelID}/messages/${messageID}/reactions/${safeEmoji}/${userID ?? "@me"}`)
     }
-    async getReactions(channelID: string, messageID: string, emoji: Emoji|string, options?: { before?: string, after?: string, limit?: number }): Promise<User[]> {
+    async getReactions(channelID: string, messageID: string, emoji: Emoji|string, options?: { before?: Date, after?: Date, limit?: Date }): Promise<User[]> {
         let safeEmoji: string
-        const params = options ? "?" + Object.keys(options).map((v) => `${v}=${options[v]}`).join("&") : ""
+        const sendable: any = options
+        if (sendable) { 
+            sendable.options.before = sendable.options.before.toISOString()
+            sendable.options.after = sendable.options.after.toISOString()
+        }  
+        const params = jsonToParams(options)
         switch (typeof emoji) {
         case "string": 
             safeEmoji = emoji
@@ -624,7 +727,7 @@ export default class HTTP {
     }
     async listGuildMembers(guildID: string, options: { limit?: number, after?: string }): Promise<Member[]> { 
         const
-            params = options ? "?" + Object.keys(options).map((v) => `${v}=${options[v]}`).join("&") : "",
+            params = jsonToParams(options),
             res = await this.client.get(`/guilds/${guildID}/members${params}`), 
             data = await res.json()
         return data.map(d => new Member(d, this.bot))
@@ -753,7 +856,7 @@ export default class HTTP {
         const sendable: any = { ...options }
         if (sendable.include_roles) sendable.roles = sendable.include_roles.join(",")
         const 
-            params = options ? "?" + Object.keys(sendable).map((v) => `${v}=${options[v]}`).join("&") : "", 
+            params = jsonToParams(sendable),
             res = await this.client.get(`/guilds/${guildID}/prune${params}`),
             data = await res.json()
         return data

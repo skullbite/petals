@@ -125,6 +125,7 @@ abstract class BaseMessage extends Base {
     type: string
     webhookID?: string
     channelID: string
+    thread?: c.ThreadChannel
     constructor(data, bot: RawClient, mock?: boolean) {
         super(data.id, bot)
         const {
@@ -224,6 +225,9 @@ abstract class BaseMessage extends Base {
         case -1:
             this.type = "CONVERTED_INTERACTION"
         }
+    }
+    async makeThread(body: { name: string, auto_archive_duration?: 60|1440|4320|10080 }, reason?: string) {
+        return this._bot.http.startThreadWithMessage(this.channelID, this.id, body, reason)
     }
     async pin() {
         await this._bot.http.addPinnedMessage(this.channelID, this.id)

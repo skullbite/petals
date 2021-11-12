@@ -163,7 +163,7 @@ export class SelectInteraction extends Interaction {
     message: Message
     constructor(d, bot) {
         super(d, bot)
-        this.message = new Message(d, bot)
+        this.message = new Message(d.message, bot)
     }
 }
 

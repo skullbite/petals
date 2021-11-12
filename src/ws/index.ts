@@ -31,6 +31,10 @@ import USER_UPDATE from "./funcs/USER_UPDATE"
 import VOICE_SERVER_UPDATE from "./funcs/VOICE_SERVER_UPDATE"
 import VOICE_STATE_UPDATE from "./funcs/VOICE_STATE_UPDATE"
 import WEBHOOKS_UPDATE from "./funcs/WEBHOOKS_UPDATE"
+import THREAD_CREATE from "./funcs/THREAD_CREATE"
+import THREAD_DELETE from "./funcs/THREAD_DELETE"
+import THREAD_MEMBER_UPDATE from "./funcs/THREAD_MEMBER_UPDATE"
+import THREAD_MEMBERS_UPDATE from "./funcs/THREAD_MEMBERS_UPDATE"
 
 export default class PetalsWS extends ws {
     readonly bot: RawClient
@@ -181,6 +185,19 @@ export default class PetalsWS extends ws {
                 case "VOICE_SERVER_UPDATE": VOICE_SERVER_UPDATE(this, data)
                     break
                 case "INTERACTION_CREATE": INTERACTION_CREATE(this, data)
+                    break
+
+                // TODO: Make thread operations less... rickety.
+                case "THREAD_CREATE":
+                case "THREAD_UPDATE": THREAD_CREATE(this, data)
+                    break
+                case "THREAD_DELETE": THREAD_DELETE(this, data)
+                    break
+                //case "THREAD_LIST_SYNC": THREAD_LIST_SYNC(this, data)
+                //    break
+                case "THREAD_MEMBER_UPDATE": THREAD_MEMBER_UPDATE(this, data)
+                    break
+                case "THREAD_MEMBERS_UPDATE": THREAD_MEMBERS_UPDATE(this, data)
                     break
                 }
                 break

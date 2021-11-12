@@ -1,5 +1,5 @@
 import { EventEmitter } from "events"
-import { ClientUser, Member } from "./models/user"
+import { ClientUser, Member, ThreadMember } from "./models/user"
 import { User } from "./models/user"
 import { Message, MessageOptions } from "./models/message"
 import HTTP from "./http/requests"
@@ -38,6 +38,9 @@ export interface ClientEvents<T> {
     (event: "guild.member"|"guild.member.edit", listener: (member: Member, guild: Guild) => void): T
     (event: "guild.member.leave", listener: (user: User, guild: Guild) => void): T
     (event: "channel.create"|"channel.edit"|"channel.delete", listener: (channel: c.GuildChannels) => void): T
+    (event: "thread.create"|"thread.edit"|"thread.delete", listener: (thread: c.ThreadChannel) => void): T
+    (event: "thread.member.edit", listener: (member: ThreadMember, thread?: c.ThreadChannel) => void): T
+    (event: "thread.members.edit", listener: (members: ThreadMember[], thread?: c.ThreadChannel) => void): T
     (event: "channel.pins.edit", listener: (timestamp: Date, channel: c.AnyTextable, guild: Guild) => void): T
     (event: "error", listener: (err: Error) => void): T
     (event: "error.rest", listener: (err: HTTPError) => void): T
