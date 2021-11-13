@@ -252,6 +252,7 @@ abstract class BaseMessage extends Base {
         }
         await this._bot.http.deleteReactions(this.channelID, this.id)
     }
+    
 }
 export class Message extends BaseMessage {
     async edit(opts: EditOptions | string) {
@@ -271,6 +272,9 @@ export class Message extends BaseMessage {
     }
     async delete() {
         await this._bot.http.deleteMessage(this.channel.id, this.id)
+    }
+    get jumpLink() {
+        return `https://discord.com/${this.guild ? this.guild.id : "@me"}/${this.channelID}/${this.id}`
     }
 }
 export class FollowupMessage extends BaseMessage {
