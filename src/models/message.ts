@@ -274,7 +274,7 @@ export class Message extends BaseMessage {
         await this._bot.http.deleteMessage(this.channel.id, this.id)
     }
     get jumpLink() {
-        return `https://discord.com/${this.guild ? this.guild.id : "@me"}/${this.channelID}/${this.id}`
+        return `https://discord.com/channels/${this.guild ? this.guild.id : "@me"}/${this.channelID}/${this.id}`
     }
 }
 export class FollowupMessage extends BaseMessage {
